@@ -61,7 +61,7 @@ export default function TodayPage() {
     if (!error && data) setSets(prev => [...prev, data])
     await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
     if (!exercises.includes(exName.trim())) setExercises(prev => [...prev, exName.trim()].sort())
-    setSetStr(''); setSaving(false)
+    setSetStr(''); setExName(''); setSaving(false)
   }
 
   async function removeSet(id: string) {
@@ -97,7 +97,11 @@ export default function TodayPage() {
         <div style={card}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
             <span style={{ fontSize:13, color:T.muted2 }}>{dateLabel}</span>
-            {sets.length > 0 && <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>{sets.length} serii</span>}
+            {Object.keys(grouped).length > 0 && (
+  <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>
+    {Object.keys(grouped).length} {Object.keys(grouped).length === 1 ? 'ćwiczenie' : Object.keys(grouped).length < 5 ? 'ćwiczenia' : 'ćwiczeń'}
+  </span>
+)}
           </div>
           <div style={lbl}>Ćwiczenie</div>
           <div style={{ position:'relative', marginBottom:10, marginTop:4 }}>

@@ -63,7 +63,7 @@ export default function DayPage() {
     if (!error && data) setSets(prev => [...prev, data])
     await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
     if (!exercises.includes(exName.trim())) setExercises(prev => [...prev, exName.trim()].sort())
-    setSetStr(''); setSaving(false)
+    setSetStr(''); setExName(''); setSaving(false)
   }
 
   async function removeSet(id: string) {
@@ -111,7 +111,11 @@ export default function DayPage() {
             <span style={{ fontSize:13, color:T.muted2 }}>{dateLabel}</span>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               {!isToday && <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.accent, border:`1px solid ${T.accent}44` }}>edycja</span>}
-              {sets.length > 0 && <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>{sets.length} serii</span>}
+              {Object.keys(grouped).length > 0 && (
+  <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>
+    {Object.keys(grouped).length} {Object.keys(grouped).length === 1 ? 'ćwiczenie' : Object.keys(grouped).length < 5 ? 'ćwiczenia' : 'ćwiczeń'}
+  </span>
+)}
             </div>
           </div>
 

@@ -5,7 +5,7 @@ export interface ParsedSet {
 }
 
 export function parseSetStr(raw: string): ParsedSet | null {
-  raw = raw.trim()
+  raw = raw.trim().replace(',', '.')
   let rest: string | null = null
   const rm = raw.match(/\(([^)]+)\)\s*$/)
   if (rm) { rest = rm[1].trim(); raw = raw.slice(0, rm.index!).trim() }
