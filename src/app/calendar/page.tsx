@@ -84,23 +84,38 @@ export default function CalendarPage() {
               )
             })}
           </div>
-          {sel && (
-            <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:10, color:T.accent }}>{fmtDate(sel)}</div>
-              {Object.entries(grouped).map(([exN,items])=>(
-                <div key={exN} style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{exN}</div>
-                  {items.map((item,i)=>(
-                    <div key={i}>
-                      <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
-                        {item.weight} kg × {item.reps_arr.join(' · ')} powt.{item.rest_note?` (${item.rest_note})`:''}
-                      </div>
-                      {item.set_note&&<div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>}
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {selNote&&<div style={{ fontSize:12, color:T.muted, marginTop:8, whiteSpace:'pre-wrap', fontStyle:'italic' }}>{selNote}</div>}
+         
+{sel && (
+  <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+      <span style={{ fontSize:13, fontWeight:600, color:T.accent }}>{fmtDate(sel)}</span>
+      <button
+        onClick={() => router.push(`/day/${sel}`)}
+        style={{ background:T.accent, color:'#111', border:`1px solid ${T.accent}`, borderRadius:7, padding:'5px 14px', fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+        {selSets.length > 0 ? '✎ edytuj trening' : '+ dodaj trening'}
+      </button>
+    </div>
+
+    {selSets.length > 0 ? (
+      Object.entries(grouped).map(([exN, items]: [string, any[]]) => (
+        <div key={exN} style={{ marginBottom:10 }}>
+          <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{exN}</div>
+          {items.map((item: any, i: number) => (
+            <div key={i}>
+              <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
+                {item.weight} kg × {item.reps_arr.join(' · ')} powt.{item.rest_note ? ` (${item.rest_note})` : ''}
+              </div>
+              {item.set_note && <div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>}
+            </div>
+          ))}
+        </div>
+      ))
+    ) : (
+      <p style={{ fontSize:12, color:T.muted }}>Brak treningu w tym dniu.</p>
+    )}
+    {selNote && <div style={{ fontSize:12, color:T.muted, marginTop:8, whiteSpace:'pre-wrap', fontStyle:'italic' }}>{selNote}</div>}
+  </div>
+)}
             </div>
           )}
         </div>
