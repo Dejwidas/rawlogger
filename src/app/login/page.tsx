@@ -34,7 +34,6 @@ export default function LoginPage() {
 
   return (
     <div style={{ maxWidth:300, margin:'3rem auto', padding:'0 1rem' }}>
-      //<p style={{ fontSize:22, fontWeight:700, letterSpacing:'-0.04em', color:T.accent, marginBottom:4 }}>rawlogger</p>
       <img src="/logo.png" alt="logo" style={{ height:40, marginBottom:4 }} />
 	  <p style={{ fontSize:12, color:T.muted, marginBottom:24 }}>surowy dziennik treningowy</p>
       <div style={{ fontSize:11, color:T.muted2, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.04em' }}>Email</div>
@@ -51,8 +50,6 @@ export default function LoginPage() {
         <button style={b(false)} onClick={()=>{setMode(mode==='login'?'reg':'login');setErr('')}}>{mode==='login'?'Rejestracja':'Wróć'}</button>
            </div>
       <p style={{ fontSize:10, color:T.muted, marginTop:32, textAlign:'center', letterSpacing:'0.05em' }}>v0.20</p>
-    </div>
-	 </div>
     </div>
   )
 }
