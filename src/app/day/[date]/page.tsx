@@ -170,7 +170,11 @@ async function handleAdd() {
 
         {/* executed sets */}
         {Object.entries(grouped).map(([exN, items]) => {
-          const totalVol = items.reduce((a, s) => a + volOf(s.weight, s.reps_arr), 0)
+          const vol = items.some(s => s.set_type==='weighted')
+  ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight??0,s.reps_arr),0) + ' kg'
+  : items.some(s => s.set_type==='timed')
+  ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b,t)=>b+t,0)??0),0) + 's'
+  : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'
           return (
             <div key={exN} style={card}>
               <div style={{ fontSize:13, fontWeight:600, marginBottom:10 }}>{exN}</div>
@@ -205,7 +209,7 @@ async function handleAdd() {
   objętość:{' '}
   <span style={{ color:T.accent }}>
     {items.some(s => s.set_type==='weighted')
-      ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight,s.reps_arr),0) + ' kg'
+      ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight ?? 0, s.reps_arr),0) + ' kg'
       : items.some(s => s.set_type==='timed')
       ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0),0) + 's'
       : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'}
