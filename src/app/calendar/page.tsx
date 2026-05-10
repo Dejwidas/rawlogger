@@ -32,7 +32,7 @@ export default function CalendarPage() {
     const from = `${yr}-${String(mo+1).padStart(2,'0')}-01`
     const to   = `${yr}-${String(mo+1).padStart(2,'0')}-${new Date(yr,mo+1,0).getDate()}`
     supabase.from('training_sets').select('date').gte('date',from).lte('date',to)
-      .then(({data}) => setDaysWithData(new Set(data?.map(r=>r.date)??[])))
+      .then(({ data }) => setDaysWithData(new Set(data?.map((r: any) => r.date) ?? [])))
   }, [yr, mo])
 
   async function selectDay(ds: string) {
@@ -45,7 +45,10 @@ export default function CalendarPage() {
   }
 
   function changeMonth(d: number) {
-    let nm=mo+d,ny=yr; if(nm>11){nm=0;ny++;} if(nm<0){nm=11;ny--;} setMo(nm);setYr(ny);setSel(null)
+    let nm=mo+d, ny=yr
+    if (nm>11) { nm=0; ny++ }
+    if (nm<0)  { nm=11; ny-- }
+    setMo(nm); setYr(ny); setSel(null)
   }
 
   const startDow = (new Date(yr,mo,1).getDay()+6)%7
@@ -53,9 +56,18 @@ export default function CalendarPage() {
   const today = todayStr()
 
   const grouped: Record<string,any[]> = {}
-  selSets.forEach(s => { if(!grouped[s.exercise_name])grouped[s.exercise_name]=[]; grouped[s.exercise_name].push(s) })
+  selSets.forEach(s => {
+    if (!grouped[s.exercise_name]) grouped[s.exercise_name] = []
+    grouped[s.exercise_name].push(s)
+  })
 
-  const b = (primary: boolean): React.CSSProperties => ({ background:primary?T.accent:'transparent', color:primary?'#111':T.muted2, border:`1px solid ${primary?T.accent:T.border2}`, borderRadius:7, padding:'5px 12px', fontSize:12, cursor:'pointer', fontFamily:'inherit' })
+  const b = (primary: boolean): React.CSSProperties => ({
+    background: primary ? T.accent : 'transparent',
+    color: primary ? '#111' : T.muted2,
+    border: `1px solid ${primary ? T.accent : T.border2}`,
+    borderRadius: 7, padding: '5px 14px', fontSize: 12, cursor: 'pointer',
+    fontFamily: 'inherit', fontWeight: primary ? 600 : 400,
+  })
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
@@ -63,59 +75,75 @@ export default function CalendarPage() {
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
         <div style={card}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-            <button style={b(false)} onClick={()=>changeMonth(-1)}>←</button>
+            <button style={b(false)} onClick={() => changeMonth(-1)}>←</button>
             <span style={{ fontSize:13, fontWeight:600 }}>{MONTHS[mo]} {yr}</span>
-            <button style={b(false)} onClick={()=>changeMonth(1)}>→</button>
+            <button style={b(false)} onClick={() => changeMonth(1)}>→</button>
           </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3, marginBottom:3 }}>
-            {DAYS.map(d=><div key={d} style={{ fontSize:10, color:T.muted, textAlign:'center', padding:'3px 0' }}>{d}</div>)}
+            {DAYS.map(d => (
+              <div key={d} style={{ fontSize:10, color:T.muted, textAlign:'center', padding:'3px 0' }}>{d}</div>
+            ))}
           </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3 }}>
-            {Array.from({length:startDow}).map((_,i)=><div key={'e'+i}/>)}
-            {Array.from({length:dim}).map((_,i)=>{
-              const d=i+1
-              const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-              const has=daysWithData.has(ds), isToday=ds===today, isSel=ds===sel
+            {Array.from({ length: startDow }).map((_, i) => <div key={'e'+i} />)}
+            {Array.from({ length: dim }).map((_, i) => {
+              const d = i+1
+              const ds = `${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+              const has = daysWithData.has(ds)
+              const isToday = ds === today
+              const isSel = ds === sel
               return (
-                <div key={d} onClick={()=>selectDay(ds)} style={{ aspectRatio:'1', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:12, borderRadius:6, cursor:'pointer', position:'relative', background:isSel?T.accent:has?T.surface2:'transparent', color:isSel?'#111':T.text, border:isToday&&!isSel?`1px solid ${T.accent}55`:'1px solid transparent', fontWeight:has?600:400 }}>
+                <div key={d} onClick={() => selectDay(ds)} style={{
+                  aspectRatio:'1', display:'flex', flexDirection:'column', alignItems:'center',
+                  justifyContent:'center', fontSize:12, borderRadius:6, cursor:'pointer', position:'relative',
+                  background: isSel ? T.accent : has ? T.surface2 : 'transparent',
+                  color: isSel ? '#111' : T.text,
+                  border: isToday && !isSel ? `1px solid ${T.accent}55` : '1px solid transparent',
+                  fontWeight: has ? 600 : 400,
+                }}>
                   {d}
-                  {has&&!isSel&&<div style={{ position:'absolute', bottom:3, width:3, height:3, borderRadius:'50%', background:T.accent }}/>}
+                  {has && !isSel && (
+                    <div style={{ position:'absolute', bottom:3, width:3, height:3, borderRadius:'50%', background:T.accent }} />
+                  )}
                 </div>
               )
             })}
           </div>
-         
-{sel && (
-  <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
-    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-      <span style={{ fontSize:13, fontWeight:600, color:T.accent }}>{fmtDate(sel)}</span>
-      <button
-        onClick={() => router.push(`/day/${sel}`)}
-        style={{ background:T.accent, color:'#111', border:`1px solid ${T.accent}`, borderRadius:7, padding:'5px 14px', fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
-        {selSets.length > 0 ? '✎ edytuj trening' : '+ dodaj trening'}
-      </button>
-    </div>
 
-    {selSets.length > 0 ? (
-      Object.entries(grouped).map(([exN, items]: [string, any[]]) => (
-        <div key={exN} style={{ marginBottom:10 }}>
-          <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{exN}</div>
-          {items.map((item: any, i: number) => (
-            <div key={i}>
-              <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
-                {item.weight} kg × {item.reps_arr.join(' · ')} powt.{item.rest_note ? ` (${item.rest_note})` : ''}
+          {sel && (
+            <div style={{ marginTop:16, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <span style={{ fontSize:13, fontWeight:600, color:T.accent }}>{fmtDate(sel)}</span>
+                <button style={b(true)} onClick={() => router.push(`/day/${sel}`)}>
+                  {selSets.length > 0 ? '✎ edytuj trening' : '+ dodaj trening'}
+                </button>
               </div>
-              {item.set_note && <div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>}
-            </div>
-          ))}
-        </div>
-      ))
-    ) : (
-      <p style={{ fontSize:12, color:T.muted }}>Brak treningu w tym dniu.</p>
-    )}
-    {selNote && <div style={{ fontSize:12, color:T.muted, marginTop:8, whiteSpace:'pre-wrap', fontStyle:'italic' }}>{selNote}</div>}
-  </div>
-)}
+
+              {selSets.length > 0 ? (
+                Object.entries(grouped).map(([exN, items]) => (
+                  <div key={exN} style={{ marginBottom:10 }}>
+                    <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{exN}</div>
+                    {items.map((item, i) => (
+                      <div key={i}>
+                        <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
+                          {item.weight} kg × {item.reps_arr.join(' · ')} powt.{item.rest_note ? ` (${item.rest_note})` : ''}
+                        </div>
+                        {item.set_note && (
+                          <div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <p style={{ fontSize:12, color:T.muted }}>Brak treningu w tym dniu.</p>
+              )}
+
+              {selNote && (
+                <div style={{ fontSize:12, color:T.muted, marginTop:8, whiteSpace:'pre-wrap', fontStyle:'italic' }}>{selNote}</div>
+              )}
             </div>
           )}
         </div>
