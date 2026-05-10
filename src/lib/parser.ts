@@ -1,4 +1,3 @@
-ts
 export interface ParsedSet {
   weight: number
   repsArr: number[]
