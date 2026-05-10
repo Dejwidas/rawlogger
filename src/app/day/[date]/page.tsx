@@ -52,19 +52,27 @@ export default function DayPage() {
   const parsed    = setStr.trim() ? parseSetStr(setStr) : null
   const acMatches = exName.trim() ? exercises.filter(e => e.toLowerCase().includes(exName.toLowerCase())) : []
 
-  async function handleAdd() {
-    if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
-    if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
-    setParseErr(''); setSaving(true)
-    const { data, error } = await supabase.from('training_sets').insert({
+async function handleAdd() {
+  if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
+  if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
+  setParseErr(''); setSaving(true)
+  for (const g of parsed.groups) {
+    const row: any = {
       user_id: userId, exercise_name: exName.trim(), date,
-      weight: parsed.weight, reps_arr: parsed.repsArr, rest_note: parsed.rest, set_note: null
-    }).select().single()
+      weight: g.type==='weighted' ? g.weight : null,
+      reps_arr: g.type==='weighted' ? g.repsArr : [],
+      set_type: g.type,
+      bw_reps: g.type==='bw' ? g.reps : null,
+      timed_seconds: g.type==='timed' ? g.seconds : null,
+      rest_note: parsed.rest, set_note: null
+    }
+    const { data, error } = await supabase.from('training_sets').insert(row).select().single()
     if (!error && data) setSets(prev => [...prev, data])
-    await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
-    if (!exercises.includes(exName.trim())) setExercises(prev => [...prev, exName.trim()].sort())
-    setSetStr(''); setExName(''); setSaving(false)
   }
+  await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
+  if (!exercises.includes(exName.trim())) setExercises(prev => [...prev, exName.trim()].sort())
+  setSetStr(''); setExName(''); setSaving(false)
+}
 
   async function removeSet(id: string) {
     await supabase.from('training_sets').delete().eq('id', id)

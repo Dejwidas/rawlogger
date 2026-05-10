@@ -1,21 +1,60 @@
+export type ParsedGroup =
+  | { type: 'weighted'; weight: number; repsArr: number[] }
+  | { type: 'bw'; reps: number }
+  | { type: 'timed'; seconds: number[] }
+
 export interface ParsedSet {
-  weight: number
-  repsArr: number[]
+  groups: ParsedGroup[]
   rest: string | null
 }
 
-export function parseSetStr(raw: string): ParsedSet | null {
+function parseSingleGroup(raw: string): ParsedGroup | null {
   raw = raw.trim().replace(',', '.')
+
+  // timed comma-separated e.g. "60s,55s,45s"
+  if (/^[\d.,s]+s$/i.test(raw.replace(/\s/g, ''))) {
+    const times = raw.split(/[,，]/).map(t => {
+      const m = t.trim().match(/^(\d+(?:\.\d+)?)s$/i)
+      return m ? parseFloat(m[1]) : null
+    })
+    if (times.every(t => t !== null)) return { type:'timed', seconds: times as number[] }
+  }
+
+  // single time e.g. "60s"
+  const tm = raw.match(/^(\d+(?:\.\d+)?)s$/i)
+  if (tm) return { type:'timed', seconds:[parseFloat(tm[1])] }
+
+  // weighted e.g. "100x5x5"
+  if (/[x*×]/i.test(raw)) {
+    const parts = raw.split(/[x*×]/i).map(p => p.trim()).filter(Boolean)
+    if (parts.length < 2) return null
+    const weight = parseFloat(parts[0])
+    if (isNaN(weight)) return null
+    const repsArr = parts.slice(1).map(Number)
+    if (repsArr.some(isNaN)) return null
+    return { type:'weighted', weight, repsArr }
+  }
+
+  // bodyweight e.g. "10"
+  if (/^\d+$/.test(raw)) return { type:'bw', reps: parseInt(raw) }
+
+  return null
+}
+
+export function parseSetStr(raw: string): ParsedSet | null {
+  raw = raw.trim()
   let rest: string | null = null
   const rm = raw.match(/\(([^)]+)\)\s*$/)
   if (rm) { rest = rm[1].trim(); raw = raw.slice(0, rm.index!).trim() }
-  const parts = raw.split(/[x*×]/i).map(p => p.trim()).filter(Boolean)
-  if (parts.length < 2) return null
-  const weight = parseFloat(parts[0])
-  if (isNaN(weight)) return null
-  const repsArr = parts.slice(1).map(Number)
-  if (repsArr.some(isNaN)) return null
-  return { weight, repsArr, rest }
+  const groups = raw.split(/\s+/).map(parseSingleGroup)
+  if (groups.some(g => g === null)) return null
+  return { groups: groups as ParsedGroup[], rest }
+}
+
+export function groupLabel(g: ParsedGroup): string {
+  if (g.type === 'timed')    return g.seconds.map(s => s+'s').join(' · ')
+  if (g.type === 'bw')       return g.reps + ' powt.'
+  return `${g.weight} kg · ${g.repsArr.join('·')} powt.`
 }
 
 export function volOf(weight: number, repsArr: number[]): number {
