@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { parseSetStr, volOf } from '@/lib/parser'
+import { parseSetStr, volOf, groupLabel } from '@/lib/parser'
 import type { TrainingSet } from '@/lib/types'
 import Nav from '@/components/Nav'
 
@@ -135,14 +135,19 @@ export default function TodayPage() {
             <button style={b(true)} onClick={handleAdd} disabled={saving}>{saving?'...':'Dodaj'}</button>
           </div>
           {parseErr && <p style={{ fontSize:11, color:T.danger, margin:'4px 0 6px' }}>{parseErr}</p>}
-          {parsed && setStr.trim() && (
-            <div style={{ fontSize:11, lineHeight:1.9, marginTop:4 }}>
-              <span style={tag}>{parsed.weight} kg</span>
-              {parsed.repsArr.map((r,i)=><span key={i} style={tag}>{r} powt.</span>)}
-              {parsed.rest && <span style={tag}>przerwa: {parsed.rest}</span>}
-              <span style={{ ...tag, color:T.accent, borderColor:T.accent+'44' }}>obj: {parsed.repsArr.reduce((a,r)=>a+r*parsed.weight,0)} kg</span>
-            </div>
-          )}
+{parsed && setStr.trim() && (
+  <div style={{ fontSize:11, lineHeight:1.9, marginTop:4 }}>
+    {parsed.groups.map((g, i) => (
+      <span key={i} style={tag}>{groupLabel(g)}</span>
+    ))}
+    {parsed.rest && <span style={tag}>przerwa: {parsed.rest}</span>}
+    {parsed.groups.some(g => g.type === 'weighted') && (
+      <span style={{ ...tag, color:T.accent, borderColor:T.accent+'44' }}>
+        obj: {parsed.groups.filter(g => g.type === 'weighted').reduce((a, g) => a + volOf((g as any).weight, (g as any).repsArr), 0)} kg
+      </span>
+    )}
+  </div>
+)}
         </div>
 
         {/* executed sets */}
