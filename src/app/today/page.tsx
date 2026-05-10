@@ -163,9 +163,13 @@ export default function TodayPage() {
               {items.map(item => (
                 <div key={item.id} style={{ marginBottom:8 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:'monospace' }}>
-                    <span style={{ color:T.accent }}>{item.weight} kg</span>
-                    <span style={{ color:T.muted2 }}>×</span>
-                    <span>{item.reps_arr.join(' · ')} powt.</span>
+                    <span style={{ color:T.accent }}>
+  {item.set_type === 'weighted'
+    ? `${item.weight} kg × ${item.reps_arr.join(' · ')} powt.`
+    : item.set_type === 'timed'
+    ? item.timed_seconds?.map(s => s+'s').join(' · ')
+    : (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'}
+</span>
                     {item.rest_note && <span style={{ fontSize:11, padding:'1px 7px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>({item.rest_note})</span>}
                     <button onClick={()=>{setEditNoteIdx(editNoteIdx===item.id?null:item.id);setNoteVal(item.set_note||'')}}
                       style={{ marginLeft:4, background:'none', border:`1px solid ${item.set_note?T.accent+'66':T.border}`, borderRadius:5, padding:'1px 7px', fontSize:10, cursor:'pointer', color:item.set_note?T.accent:T.muted, fontFamily:'inherit' }}>
