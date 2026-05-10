@@ -60,3 +60,10 @@ export function groupLabel(g: ParsedGroup): string {
 export function volOf(weight: number, repsArr: number[]): number {
   return repsArr.reduce((a, r) => a + r * weight, 0)
 }
+
+export function groupVolLabel(g: ParsedGroup): string {
+  if (g.type === 'weighted') return g.repsArr.reduce((a,r)=>a+r*g.weight,0) + ' kg'
+  if (g.type === 'timed')    return g.seconds.reduce((a,s)=>a+s,0) + 's'
+  if (g.type === 'bw')       return g.reps + ' powt.'
+  return ''
+}

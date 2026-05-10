@@ -60,7 +60,7 @@ async function handleAdd() {
     const row: any = {
       user_id: userId, exercise_name: exName.trim(), date,
       weight: g.type==='weighted' ? g.weight : null,
-      reps_arr: g.type==='weighted' ? g.repsArr : [],
+	  reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
       set_type: g.type,
       bw_reps: g.type==='bw' ? g.reps : null,
       timed_seconds: g.type==='timed' ? g.seconds : null,
@@ -202,8 +202,15 @@ async function handleAdd() {
                 </div>
               ))}
               <div style={{ fontSize:11, color:T.muted, marginTop:6, borderTop:`1px solid ${T.border}`, paddingTop:6 }}>
-                objętość: <span style={{ color:T.accent }}>{totalVol} kg</span>
-              </div>
+  objętość:{' '}
+  <span style={{ color:T.accent }}>
+    {items.some(s => s.set_type==='weighted')
+      ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight,s.reps_arr),0) + ' kg'
+      : items.some(s => s.set_type==='timed')
+      ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0),0) + 's'
+      : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'}
+  </span>
+</div>
             </div>
           )
         })}
