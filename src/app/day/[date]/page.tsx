@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { parseSetStr, volOf } from '@/lib/parser'
+import { parseSetStr, volOf, groupLabel } from '@/lib/parser'
 import type { TrainingSet } from '@/lib/types'
 import Nav from '@/components/Nav'
 
