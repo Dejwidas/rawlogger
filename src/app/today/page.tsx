@@ -65,7 +65,6 @@ export default function TodayPage() {
     rest_note: parsed.rest, set_note: null
   }
 const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-if (error) console.error('INSERT ERROR:', JSON.stringify(error))
 if (!error && data) setSets(prev => [...prev, data])
 }
     await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
