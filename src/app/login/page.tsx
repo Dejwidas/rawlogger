@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ maxWidth:300, margin:'3rem auto', padding:'0 1rem' }}>
-      <img src="/logo.png" alt="logo" style={{ height:40, marginBottom:4 }} />
+  <img src="/logo.png" alt="logo" style={{ width:'100%', marginBottom:12 }} />
 	  <p style={{ fontSize:12, color:T.muted, marginBottom:24 }}>surowy dziennik treningowy</p>
       <div style={{ fontSize:11, color:T.muted2, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.04em' }}>Email</div>
       <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="adres@email.com" />
