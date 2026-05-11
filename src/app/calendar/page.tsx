@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Nav from '@/components/Nav'
+import type { TrainingSet } from '@/lib/types'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -126,16 +127,31 @@ export default function CalendarPage() {
                   <div key={exN} style={{ marginBottom:10 }}>
                     <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{exN}</div>
                     {items.map((item, i) => (
-                      <div key={i}>
-                        <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
-                          {item.weight} kg × {item.reps_arr.join(' · ')} powt.{item.rest_note ? ` (${item.rest_note})` : ''}
-                        </div>
-                        {item.set_note && (
-                          <div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>
-                        )}
-                      </div>
-                    ))}
+  <div key={i}>
+    <div style={{ fontSize:12, color:T.muted2, fontFamily:'monospace', marginBottom:2 }}>
+      {item.set_type === 'weighted'
+        ? `${item.weight} kg × ${item.reps_arr.join(' · ')} powt.`
+        : item.set_type === 'timed'
+        ? item.timed_seconds?.map((s: number) => s+'s').join(' · ')
+        : (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'}
+      {item.rest_note ? ` (${item.rest_note})` : ''}
+    </div>
+    {item.set_note && <div style={{ fontSize:11, color:T.muted, fontStyle:'italic', marginBottom:4 }}>{item.set_note}</div>}
+  </div>
+))}
                   </div>
+				  
+				  <div style={{ fontSize:11, color:T.muted, marginTop:4, paddingTop:4, borderTop:`1px solid ${T.border}` }}>
+  objętość:{' '}
+  <span style={{ color:T.accent }}>
+    {items.some((s:any) => s.set_type==='weighted')
+      ? items.filter((s:any)=>s.set_type==='weighted').reduce((a:number,s:any)=>a+(s.weight??0)*(s.reps_arr?.reduce((b:number,r:number)=>b+r,0)??0),0) + ' kg'
+      : items.some((s:any) => s.set_type==='timed')
+      ? items.reduce((a:number,s:any)=>a+(s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0),0) + 's'
+      : items.reduce((a:number,s:any)=>a+(s.bw_reps??s.reps_arr?.[0]??0),0) + ' powt.'}
+  </span>
+</div>
+				  
                 ))
               ) : (
                 <p style={{ fontSize:12, color:T.muted }}>Brak treningu w tym dniu.</p>
