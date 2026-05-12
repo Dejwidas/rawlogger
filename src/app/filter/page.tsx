@@ -91,18 +91,17 @@ async function renameExercise(oldName: string) {
   if (!newName || newName === oldName) { setRenameId(null); return }
   const normalized = newName.charAt(0).toUpperCase() + newName.slice(1).toLowerCase()
 
-  await supabase.from('exercises')
-    .update({ name: normalized })
-    .eq('user_id', userId)
-    .eq('name', oldName)
+  const r1 = await supabase.from('exercises')
+    .update({ name: normalized }).eq('user_id', userId).eq('name', oldName)
+  console.log('exercises update:', r1.error, r1.status)
 
- await supabase.from('training_sets')
-  .update({ exercise_name: normalized })
-  .eq('exercise_name', oldName)
+  const r2 = await supabase.from('training_sets')
+    .update({ exercise_name: normalized }).eq('exercise_name', oldName)
+  console.log('training_sets update:', r2.error, r2.status, r2.count)
 
-await supabase.from('favorite_exercises')
-  .update({ exercise_name: normalized })
-  .eq('exercise_name', oldName)
+  const r3 = await supabase.from('favorite_exercises')
+    .update({ exercise_name: normalized }).eq('exercise_name', oldName)
+  console.log('favorite_exercises update:', r3.error, r3.status)
 
   setExercises(prev => prev.map(e => e === oldName ? normalized : e).sort())
   setPopular(prev => prev.map(e => e.name === oldName ? { ...e, name: normalized } : e))
