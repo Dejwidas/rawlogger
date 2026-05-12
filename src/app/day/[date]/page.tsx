@@ -301,6 +301,6 @@ async function handleEditSave(item: TrainingSet) {
         </div>
 		
       </div>
-    </div>
+    
   )
 }
