@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Nav from '@/components/Nav'
 import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -33,7 +34,7 @@ function setLabel(item: any): string {
   return (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'
 }
 
-export default function CalendarPage() {
+function CalendarContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -185,5 +186,13 @@ export default function CalendarPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={<div style={{ background:'#0e0e0e', minHeight:'100vh' }} />}>
+      <CalendarContent />
+    </Suspense>
   )
 }
