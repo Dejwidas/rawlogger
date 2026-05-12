@@ -61,13 +61,7 @@ export default function TodayPage() {
    for (const g of parsed.groups) {
   const row: any = {
     user_id: userId, exercise_name: exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase(), date: today,
-    weight: g.type==='weighted' ? g.weight : null,
-    reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
-    set_type: g.type,
-    bw_reps: g.type==='bw' ? g.reps : null,
-    timed_seconds: g.type==='timed' ? g.seconds : null,
     rest_note: parsed.rest, set_note: null,
-	
 	weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
 	reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
 	set_type: g.type,

@@ -60,24 +60,22 @@ async function handleAdd() {
   if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
   setParseErr(''); setSaving(true)
   for (const g of parsed.groups) {
-    const row: any = {
-      user_id: userId, exercise_name: exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase(), date,
-      weight: g.type==='weighted' ? g.weight : null,
-	  reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
-      set_type: g.type,
-      bw_reps: g.type==='bw' ? g.reps : null,
-      timed_seconds: g.type==='timed' ? g.seconds : null,
-      rest_note: parsed.rest, set_note: null,
-	  weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
-		reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
-		set_type: g.type,
-		bw_reps: g.type==='bw' ? g.reps : null,
-		timed_seconds: g.type==='timed' ? g.seconds : null,
-		wt_seconds: g.type==='wt' ? g.seconds : null,
-    }
-    const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-    if (!error && data) setSets(prev => [...prev, data])
+  const row: any = {
+    user_id: userId,
+    exercise_name: exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase(),
+    date,
+    weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
+    reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
+    set_type: g.type,
+    bw_reps: g.type==='bw' ? g.reps : null,
+    timed_seconds: g.type==='timed' ? g.seconds : null,
+    wt_seconds: g.type==='wt' ? g.seconds : null,
+    rest_note: parsed.rest,
+    set_note: null,
   }
+  const { data, error } = await supabase.from('training_sets').insert(row).select().single()
+  if (!error && data) setSets(prev => [...prev, data])
+}
 const normalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
 const existing = exercises.find(e => e.toLowerCase() === normalized.toLowerCase())
 const finalName = existing || normalized
