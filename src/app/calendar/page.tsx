@@ -13,24 +13,21 @@ const DAYS = ['Pon','Wt','Śr','Czw','Pt','Sob','Nd']
 const fmtDate = (s: string) => { const [y,m,d]=s.split('-'); return `${d}.${m}.${y}` }
 const todayStr = () => new Date().toISOString().slice(0,10)
 
-
-
 function exVol(items: any[]): string {
   if (items.some(s => s.set_type === 'weighted'))
     return items.filter(s => s.set_type==='weighted')
       .reduce((a,s) => a + (s.weight??0) * (s.reps_arr?.reduce((b:number,r:number)=>b+r,0)??0), 0) + ' kg'
+  if (items.some(s => s.set_type === 'wt'))
+    return items.reduce((a,s) => a + (s.weight??0)*(s.wt_seconds??0), 0) + ' kg·s'
   if (items.some(s => s.set_type === 'timed'))
     return items.reduce((a,s) => a + (s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0), 0) + 's'
   return items.reduce((a,s) => a + (s.bw_reps ?? s.reps_arr?.[0] ?? 0), 0) + ' powt.'
 }
 
 function setLabel(item: any): string {
-  if (item.set_type === 'weighted')
-    return `${item.weight} kg × ${item.reps_arr?.join(' · ')} powt.`
-  if (item.set_type === 'timed')
-    return item.timed_seconds?.map((s: number) => s+'s').join(' · ') ?? ''
-  if (item.set_type === 'wt')
-    return `${item.weight} kg × ${item.wt_seconds}s`
+  if (item.set_type === 'weighted') return `${item.weight} kg × ${item.reps_arr?.join(' · ')} powt.`
+  if (item.set_type === 'timed')   return item.timed_seconds?.map((s: number) => s+'s').join(' · ') ?? ''
+  if (item.set_type === 'wt')      return `${item.weight} kg × ${item.wt_seconds}s`
   return (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'
 }
 
@@ -44,35 +41,40 @@ function CalendarContent() {
   const [sel, setSel] = useState<string|null>(null)
   const [selSets, setSelSets] = useState<any[]>([])
   const [selNote, setSelNote] = useState('')
+  const [pendingDay, setPendingDay] = useState<string|null>(null)
 
+  // auth + handle ?day= param
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
+      const day = searchParams.get('day')
+      if (day) {
+        const d = new Date(day + 'T12:00:00')
+        setYr(d.getFullYear())
+        setMo(d.getMonth())
+        setPendingDay(day)
+      }
     })
   }, [])
 
+  // load days with data for current month
   useEffect(() => {
     const from = `${yr}-${String(mo+1).padStart(2,'0')}-01`
     const to   = `${yr}-${String(mo+1).padStart(2,'0')}-${new Date(yr,mo+1,0).getDate()}`
     supabase.from('training_sets').select('date').gte('date',from).lte('date',to)
-      .then(({ data }) => setDaysWithData(new Set(data?.map((r: any) => r.date) ?? [])))
+      .then(({ data }) => {
+        setDaysWithData(new Set(data?.map((r: any) => r.date) ?? []))
+      })
   }, [yr, mo])
-  
- useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (!session) { router.replace('/login'); return }
-    setEmail(session.user.email ?? '')
-    
-    const day = searchParams.get('day')
-    if (day) {
-      const d = new Date(day + 'T12:00:00')
-      setYr(d.getFullYear())
-      setMo(d.getMonth())
-      selectDay(day)
+
+  // once daysWithData loaded and we have a pendingDay — select it
+  useEffect(() => {
+    if (pendingDay) {
+      selectDay(pendingDay)
+      setPendingDay(null)
     }
-  })
-}, [])
+  }, [daysWithData])
 
   async function selectDay(ds: string) {
     if (sel === ds) { setSel(null); return }
