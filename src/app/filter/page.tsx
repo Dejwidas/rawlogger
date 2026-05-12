@@ -64,12 +64,18 @@ export default function FilterPage() {
           <button style={{ ...b(true), marginBottom:14 }} onClick={doFilter}>Szukaj</button>
           {results!==null && results.length===0 && <p style={{ fontSize:12, color:T.muted }}>Brak wyników.</p>}
           {results?.map(({date,sets})=>(
-            <div key={date} style={{ padding:'8px 0', borderBottom:`1px solid ${T.border}`, fontSize:12 }}>
-              <span style={{ color:T.accent, fontFamily:'monospace' }}>{fmtDate(date)}</span>
-              <span style={{ color:T.muted2 }}> — </span>
-              <span style={{ color:T.muted2, fontFamily:'monospace' }}>{sets.map((s:any)=>`${s.weight}kg×${s.reps_arr?.join('·')}`).join('  ')}</span>
-            </div>
-          ))}
+		  <div key={date} onClick={() => router.push(`/calendar?day=${date}`)}
+			style={{ padding:'8px 0', borderBottom:`1px solid ${T.border}`, fontSize:12, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}
+			onMouseEnter={e => (e.currentTarget.style.background = T.surface2)}
+			onMouseLeave={e => (e.currentTarget.style.background = '')}>
+			<span style={{ color:T.accent, fontFamily:'monospace' }}>{fmtDate(date)}</span>
+			<span style={{ color:T.muted2, fontFamily:'monospace', fontSize:11 }}>{sets.map((s:any) =>
+			  s.set_type==='weighted' ? `${s.weight}kg×${s.reps_arr?.join('·')}`
+			  : s.set_type==='timed' ? s.timed_seconds?.map((t:number)=>t+'s').join('·')
+			  : (s.bw_reps??s.reps_arr?.[0])+'powt.'
+			).join('  ')}</span>
+		  </div>
+		))}
         </div>
       </div>
     </div>

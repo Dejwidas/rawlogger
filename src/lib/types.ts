@@ -10,6 +10,7 @@ export interface TrainingSet {
   rest_note: string | null
   set_note: string | null
   created_at: string
+  wt_seconds: number | null
 }
 
 export interface TrainingNote {

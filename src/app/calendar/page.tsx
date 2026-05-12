@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Nav from '@/components/Nav'
+import { useSearchParams } from 'next/navigation'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -10,6 +11,8 @@ const MONTHS = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec'
 const DAYS = ['Pon','Wt','Śr','Czw','Pt','Sob','Nd']
 const fmtDate = (s: string) => { const [y,m,d]=s.split('-'); return `${d}.${m}.${y}` }
 const todayStr = () => new Date().toISOString().slice(0,10)
+
+
 
 function exVol(items: any[]): string {
   if (items.some(s => s.set_type === 'weighted'))
@@ -25,10 +28,13 @@ function setLabel(item: any): string {
     return `${item.weight} kg × ${item.reps_arr?.join(' · ')} powt.`
   if (item.set_type === 'timed')
     return item.timed_seconds?.map((s: number) => s+'s').join(' · ') ?? ''
+  if (item.set_type === 'wt')
+    return `${item.weight} kg × ${item.wt_seconds}s`
   return (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'
 }
 
 export default function CalendarPage() {
+  const searchParams = useSearchParams()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [yr, setYr] = useState(new Date().getFullYear())
@@ -51,6 +57,16 @@ export default function CalendarPage() {
     supabase.from('training_sets').select('date').gte('date',from).lte('date',to)
       .then(({ data }) => setDaysWithData(new Set(data?.map((r: any) => r.date) ?? [])))
   }, [yr, mo])
+  
+  useEffect(() => {
+  const day = searchParams.get('day')
+  if (day) {
+    const d = new Date(day)
+    setYr(d.getFullYear())
+    setMo(d.getMonth())
+    selectDay(day)
+  }
+}, [])
 
   async function selectDay(ds: string) {
     if (sel === ds) { setSel(null); return }

@@ -31,9 +31,10 @@ export default function DayPage() {
   const [setStr, setSetStr]     = useState('')
   const [acOpen, setAcOpen]     = useState(false)
   const [parseErr, setParseErr] = useState('')
-  const [editNoteIdx, setEditNoteIdx] = useState<string|null>(null)
-  const [noteVal, setNoteVal]   = useState('')
   const [saving, setSaving]     = useState(false)
+  const [favorites, setFavorites] = useState<string[]>([])
+  const [editId, setEditId] = useState<string|null>(null)
+  const [editVal, setEditVal] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -46,6 +47,8 @@ export default function DayPage() {
       setExercises(exData?.map((e: any) => e.name) ?? [])
       const { data: noteData } = await supabase.from('training_notes').select('note').eq('date', date).single()
       setDayNote(noteData?.note ?? '')
+	  const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
+	  setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
     })
   }, [date])
 
@@ -58,20 +61,41 @@ async function handleAdd() {
   setParseErr(''); setSaving(true)
   for (const g of parsed.groups) {
     const row: any = {
-      user_id: userId, exercise_name: exName.trim(), date,
+      user_id: userId, exercise_name: exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase(), date,
       weight: g.type==='weighted' ? g.weight : null,
 	  reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
       set_type: g.type,
       bw_reps: g.type==='bw' ? g.reps : null,
       timed_seconds: g.type==='timed' ? g.seconds : null,
-      rest_note: parsed.rest, set_note: null
+      rest_note: parsed.rest, set_note: null,
+	  weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
+		reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
+		set_type: g.type,
+		bw_reps: g.type==='bw' ? g.reps : null,
+		timed_seconds: g.type==='timed' ? g.seconds : null,
+		wt_seconds: g.type==='wt' ? g.seconds : null,
     }
     const { data, error } = await supabase.from('training_sets').insert(row).select().single()
     if (!error && data) setSets(prev => [...prev, data])
   }
-  await supabase.from('exercises').upsert({ user_id: userId, name: exName.trim() }, { onConflict: 'user_id,name' })
-  if (!exercises.includes(exName.trim())) setExercises(prev => [...prev, exName.trim()].sort())
-  setSetStr(''); setExName(''); setSaving(false)
+const normalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
+const existing = exercises.find(e => e.toLowerCase() === normalized.toLowerCase())
+const finalName = existing || normalized
+if (!existing) {
+  await supabase.from('exercises').insert({ user_id: userId, name: finalName })
+  setExercises(prev => [...prev, finalName].sort())
+}
+setSetStr(''); setExName(''); setSaving(false)
+}
+
+async function toggleFavorite(name: string) {
+  if (favorites.includes(name)) {
+    await supabase.from('favorite_exercises').delete().eq('user_id', userId).eq('exercise_name', name)
+    setFavorites(prev => prev.filter(f => f !== name))
+  } else {
+    await supabase.from('favorite_exercises').insert({ user_id: userId, exercise_name: name })
+    setFavorites(prev => [...prev, name].sort())
+  }
 }
 
   async function removeSet(id: string) {
@@ -79,11 +103,7 @@ async function handleAdd() {
     setSets(prev => prev.filter(s => s.id !== id))
   }
 
-  async function saveSetNote(id: string, note: string) {
-    await supabase.from('training_sets').update({ set_note: note }).eq('id', id)
-    setSets(prev => prev.map(s => s.id === id ? { ...s, set_note: note } : s))
-    setEditNoteIdx(null)
-  }
+
 
   const saveDayNote = useCallback(async (val: string) => {
     setDayNote(val)
@@ -98,6 +118,25 @@ async function handleAdd() {
 
   const grouped: Record<string, TrainingSet[]> = {}
   sets.forEach(s => { if (!grouped[s.exercise_name]) grouped[s.exercise_name] = []; grouped[s.exercise_name].push(s) })
+
+
+async function handleEditSave(item: TrainingSet) {
+  const p = parseSetStr(editVal)
+  if (!p || p.groups.length !== 1) return
+  const g = p.groups[0]
+  const row: any = {
+    weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
+    reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
+    set_type: g.type,
+    bw_reps: g.type==='bw' ? g.reps : null,
+    timed_seconds: g.type==='timed' ? g.seconds : null,
+    wt_seconds: g.type==='wt' ? g.seconds : null,
+  }
+  await supabase.from('training_sets').update(row).eq('id', item.id)
+  setSets(prev => prev.map(s => s.id === item.id ? {...s, ...row} : s))
+  setEditId(null)
+}
+
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
@@ -177,46 +216,58 @@ async function handleAdd() {
   : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'
           return (
             <div key={exN} style={card}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:10 }}>{exN}</div>
-              {items.map(item => (
-                <div key={item.id} style={{ marginBottom:8 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:'monospace' }}>
-                    <span style={{ color:T.accent }}>
-  {item.set_type === 'weighted'
-    ? `${item.weight} kg × ${item.reps_arr.join(' · ')} powt.`
-    : item.set_type === 'timed'
-    ? item.timed_seconds?.map(s => s+'s').join(' · ')
-    : (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'}
-</span>
-                    {item.rest_note && <span style={{ fontSize:11, padding:'1px 7px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>({item.rest_note})</span>}
-                    <button onClick={() => { setEditNoteIdx(editNoteIdx===item.id ? null : item.id); setNoteVal(item.set_note||'') }}
-                      style={{ marginLeft:4, background:'none', border:`1px solid ${item.set_note ? T.accent+'66' : T.border}`, borderRadius:5, padding:'1px 7px', fontSize:10, cursor:'pointer', color:item.set_note ? T.accent : T.muted, fontFamily:'inherit' }}>
-                      {item.set_note ? '✎ notatka' : '+ notatka'}
-                    </button>
-                    <button onClick={() => removeSet(item.id)}
-                      style={{ marginLeft:'auto', background:'none', border:`1px solid ${T.border}`, borderRadius:5, padding:'1px 8px', fontSize:10, cursor:'pointer', color:T.muted, fontFamily:'inherit' }}>usuń</button>
-                  </div>
-                  {item.set_note && editNoteIdx !== item.id && (
-                    <div style={{ fontSize:11, color:T.muted2, marginTop:3, paddingLeft:2, fontStyle:'italic' }}>{item.set_note}</div>
-                  )}
-                  {editNoteIdx === item.id && (
-                    <div style={{ marginTop:6, display:'flex', gap:6 }}>
-                      <input style={{ ...inp, flex:1, fontSize:12 }} value={noteVal} onChange={e => setNoteVal(e.target.value)}
-                        placeholder="np. ból łokcia, lekko poszło..." autoFocus
-                        onKeyDown={e => { if (e.key==='Enter') saveSetNote(item.id, noteVal); if (e.key==='Escape') setEditNoteIdx(null) }} />
-                      <button style={b(true, { padding:'4px 12px', fontSize:11 })} onClick={() => saveSetNote(item.id, noteVal)}>OK</button>
-                    </div>
-                  )}
-                </div>
-              ))}
+              <div style={{ fontSize:13, fontWeight:600, marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+				  {exN}
+				  <button onClick={() => toggleFavorite(exN)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color: favorites.includes(exN) ? T.accent : T.muted, padding:0, lineHeight:1 }}>
+					{favorites.includes(exN) ? '★' : '☆'}
+				  </button>
+				</div>
+{items.map(item => (
+  <div key={item.id} style={{ marginBottom:8 }}>
+    {editId === item.id ? (
+      <div style={{ display:'flex', gap:6 }}>
+        <input style={{ ...inp, flex:1, fontSize:12, fontFamily:'monospace' }} value={editVal}
+          onChange={e => setEditVal(e.target.value)} autoFocus
+          onKeyDown={e => { if(e.key==='Enter') handleEditSave(item); if(e.key==='Escape') setEditId(null) }} />
+        <button style={b(true, { padding:'4px 12px', fontSize:11 })} onClick={() => handleEditSave(item)}>OK</button>
+        <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => setEditId(null)}>✕</button>
+      </div>
+    ) : (
+      <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:'monospace' }}>
+        <span style={{ color:T.accent }}>
+          {item.set_type === 'weighted'
+            ? `${item.weight} kg × ${item.reps_arr.join(' · ')} powt.`
+            : item.set_type === 'timed'
+            ? item.timed_seconds?.map((s: number) => s+'s').join(' · ')
+            : item.set_type === 'wt'
+            ? `${item.weight} kg × ${item.wt_seconds}s`
+            : (item.bw_reps ?? item.reps_arr?.[0]) + ' powt.'}
+        </span>
+        {item.rest_note && <span style={{ fontSize:11, padding:'1px 7px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>({item.rest_note})</span>}
+        <button onClick={() => {
+          setEditId(item.id)
+          if (item.set_type==='weighted') setEditVal(`${item.weight}x${item.reps_arr.join('x')}`)
+          else if (item.set_type==='bw')  setEditVal(`${item.bw_reps}`)
+          else if (item.set_type==='timed') setEditVal(item.timed_seconds?.map(s=>s+'s').join(',') ?? '')
+          else if (item.set_type==='wt')  setEditVal(`${item.weight}x${item.wt_seconds}s`)
+        }} style={{ marginLeft:4, background:'none', border:`1px solid ${T.border}`, borderRadius:5, padding:'1px 7px', fontSize:10, cursor:'pointer', color:T.muted, fontFamily:'inherit' }}>edytuj</button>
+        <button onClick={() => removeSet(item.id)}
+          style={{ marginLeft:'auto', background:'none', border:`1px solid ${T.border}`, borderRadius:5, padding:'1px 8px', fontSize:10, cursor:'pointer', color:T.muted, fontFamily:'inherit' }}>usuń</button>
+      </div>
+    )}
+  </div>
+))}
               <div style={{ fontSize:11, color:T.muted, marginTop:6, borderTop:`1px solid ${T.border}`, paddingTop:6 }}>
   objętość:{' '}
   <span style={{ color:T.accent }}>
-    {items.some(s => s.set_type==='weighted')
-      ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight ?? 0, s.reps_arr),0) + ' kg'
-      : items.some(s => s.set_type==='timed')
-      ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0),0) + 's'
-      : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'}
+{items.some(s => s.set_type==='weighted')
+  ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight ?? 0, s.reps_arr),0) + ' kg'
+  : items.some(s => s.set_type==='wt')
+  ? items.reduce((a,s)=>a+(s.weight??0)*(s.wt_seconds??0),0) + ' kg·s'
+  : items.some(s => s.set_type==='timed')
+  ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b:number,t:number)=>b+t,0)??0),0) + 's'
+  : items.reduce((a,s)=>a+(s.bw_reps??s.reps_arr?.[0]??0),0) + ' powt.'}
+
   </span>
 </div>
             </div>

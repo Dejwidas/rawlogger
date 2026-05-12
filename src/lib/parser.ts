@@ -2,6 +2,7 @@ export type ParsedGroup =
   | { type: 'weighted'; weight: number; repsArr: number[] }
   | { type: 'bw'; reps: number }
   | { type: 'timed'; seconds: number[] }
+  | { type: 'wt'; weight: number; seconds: number }
 
 export interface ParsedSet {
   groups: ParsedGroup[]
@@ -10,6 +11,10 @@ export interface ParsedSet {
 
 function parseSingleGroup(raw: string): ParsedGroup | null {
   raw = raw.trim().replace(',', '.')
+  
+	  // weighted-timed e.g. "10x20s" or "10*20s"
+	const wtMatch = raw.match(/^(\d+(?:\.\d+)?)[x*×](\d+(?:\.\d+)?)s$/i)
+	if (wtMatch) return { type:'wt', weight: parseFloat(wtMatch[1]), seconds: parseFloat(wtMatch[2]) }
 
   // timed comma-separated e.g. "60s,55s,45s"
   if (/^[\d.,s]+s$/i.test(raw.replace(/\s/g, ''))) {
@@ -54,6 +59,7 @@ export function parseSetStr(raw: string): ParsedSet | null {
 export function groupLabel(g: ParsedGroup): string {
   if (g.type === 'timed')    return g.seconds.map(s => s+'s').join(' · ')
   if (g.type === 'bw')       return g.reps + ' powt.'
+  if (g.type === 'wt')       return `${g.weight} kg × ${g.seconds}s`
   return `${g.weight} kg · ${g.repsArr.join('·')} powt.`
 }
 
