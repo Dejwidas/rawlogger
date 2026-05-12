@@ -4,7 +4,7 @@ export interface TrainingSet {
   date: string
   weight: number | null
   reps_arr: number[]
-  set_type: 'weighted' | 'bw' | 'timed'
+  set_type: 'weighted' | 'bw' | 'timed' | 'wt'
   bw_reps: number | null
   timed_seconds: number[] | null
   rest_note: string | null
