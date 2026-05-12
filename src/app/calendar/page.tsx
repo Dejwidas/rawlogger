@@ -59,14 +59,19 @@ function CalendarContent() {
       .then(({ data }) => setDaysWithData(new Set(data?.map((r: any) => r.date) ?? [])))
   }, [yr, mo])
   
-  useEffect(() => {
-  const day = searchParams.get('day')
-  if (day) {
-    const d = new Date(day)
-    setYr(d.getFullYear())
-    setMo(d.getMonth())
-    selectDay(day)
-  }
+ useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!session) { router.replace('/login'); return }
+    setEmail(session.user.email ?? '')
+    
+    const day = searchParams.get('day')
+    if (day) {
+      const d = new Date(day + 'T12:00:00')
+      setYr(d.getFullYear())
+      setMo(d.getMonth())
+      selectDay(day)
+    }
+  })
 }, [])
 
   async function selectDay(ds: string) {
