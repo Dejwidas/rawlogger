@@ -49,7 +49,7 @@ export default function LoginPage() {
         <button style={b(true)} onClick={submit} disabled={loading}>{loading?'...':(mode==='login'?'Zaloguj':'Utwórz konto')}</button>
         <button style={b(false)} onClick={()=>{setMode(mode==='login'?'reg':'login');setErr('')}}>{mode==='login'?'Rejestracja':'Wróć'}</button>
            </div>
-      <p style={{ fontSize:10, color:T.muted, marginTop:32, textAlign:'center', letterSpacing:'0.05em' }}>v0.23 · kontakt@rawlogger.pl</p>
+      <p style={{ fontSize:10, color:T.muted, marginTop:32, textAlign:'center', letterSpacing:'0.05em' }}>v0.29 · kontakt@rawlogger.pl</p>
     </div>
   )
 }

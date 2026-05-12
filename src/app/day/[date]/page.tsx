@@ -35,6 +35,7 @@ export default function DayPage() {
   const [favorites, setFavorites] = useState<string[]>([])
   const [editId, setEditId] = useState<string|null>(null)
   const [editVal, setEditVal] = useState('')
+  const [dayTitle, setDayTitle] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -45,8 +46,9 @@ export default function DayPage() {
       setSets(setsData ?? [])
       const { data: exData } = await supabase.from('exercises').select('name').order('name')
       setExercises(exData?.map((e: any) => e.name) ?? [])
-      const { data: noteData } = await supabase.from('training_notes').select('note').eq('date', date).single()
+      const { data: noteData } = await supabase.from('training_notes').select('note, title').eq('date', date).single()
       setDayNote(noteData?.note ?? '')
+	  setDayTitle(noteData?.title ?? '')
 	  const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
 	  setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
     })
@@ -103,13 +105,12 @@ async function toggleFavorite(name: string) {
 
 
 
-  const saveDayNote = useCallback(async (val: string) => {
-    setDayNote(val)
-    await supabase.from('training_notes').upsert(
-      { user_id: userId, date, note: val, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,date' }
-    )
-  }, [userId, date])
+const saveDayData = useCallback(async (note: string, title: string) => {
+  await supabase.from('training_notes').upsert(
+    { user_id: userId, date: today, note, title, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,date' }
+  )
+}, [userId, today])
 
   const d = new Date(date + 'T12:00:00')
   const dateLabel = d.toLocaleDateString('pl-PL', { weekday:'long', year:'numeric', month:'long', day:'numeric' })
@@ -153,6 +154,22 @@ async function handleEditSave(item: TrainingSet) {
         {/* input card */}
         <div style={card}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+  <div>
+    <span style={{ fontSize:13, color:T.muted2 }}>{dateLabel}</span>
+    {dayTitle && <span style={{ fontSize:12, color:T.accent, marginLeft:8, fontStyle:'italic' }}>{dayTitle}</span>}
+  </div>
+  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+    <input value={dayTitle} onChange={e => setDayTitle(e.target.value.slice(0,30))}
+      placeholder="tytuł..." autoComplete="off"
+      style={{ ...inp, width:110, fontSize:12, padding:'4px 8px' }}
+      onBlur={() => saveDayData(dayNote, dayTitle)} />
+    {Object.keys(grouped).length > 0 && (
+      <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.muted, border:`1px solid ${T.border}` }}>
+        {Object.keys(grouped).length} {Object.keys(grouped).length===1?'ćwiczenie':Object.keys(grouped).length<5?'ćwiczenia':'ćwiczeń'}
+      </span>
+    )}
+  </div>
+</div>
             <span style={{ fontSize:13, color:T.muted2 }}>{dateLabel}</span>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               {!isToday && <span style={{ fontSize:11, padding:'2px 8px', background:T.surface2, borderRadius:99, color:T.accent, border:`1px solid ${T.accent}44` }}>edycja</span>}
@@ -206,20 +223,21 @@ async function handleEditSave(item: TrainingSet) {
         </div>
 
         {/* executed sets */}
-        {Object.entries(grouped).map(([exN, items]) => {
+        {Object.entries(grouped).map(([exN, items], idx) => {
           const vol = items.some(s => s.set_type==='weighted')
   ? items.filter(s=>s.set_type==='weighted').reduce((a,s)=>a+volOf(s.weight??0,s.reps_arr),0) + ' kg'
   : items.some(s => s.set_type==='timed')
   ? items.reduce((a,s)=>a+(s.timed_seconds?.reduce((b,t)=>b+t,0)??0),0) + 's'
   : items.reduce((a,s)=>a+(s.reps_arr?.[0]??0),0) + ' powt.'
           return (
-            <div key={exN} style={card}>
-              <div style={{ fontSize:13, fontWeight:600, marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
-				  {exN}
-				  <button onClick={() => toggleFavorite(exN)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color: favorites.includes(exN) ? T.accent : T.muted, padding:0, lineHeight:1 }}>
-					{favorites.includes(exN) ? '★' : '☆'}
-				  </button>
-				</div>
+              <div key={exN} style={card}>
+    <div style={{ fontSize:13, fontWeight:600, marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+      <span style={{ fontSize:11, color:T.muted, fontFamily:'monospace' }}>#{idx+1}</span>
+      {exN}
+      <button onClick={() => toggleFavorite(exN)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color: favorites.includes(exN) ? T.accent : T.muted, padding:0, lineHeight:1 }}>
+        {favorites.includes(exN) ? '★' : '☆'}
+      </button>
+    </div>
 {items.map(item => (
   <div key={item.id} style={{ marginBottom:8 }}>
     {editId === item.id ? (
@@ -275,10 +293,13 @@ async function handleEditSave(item: TrainingSet) {
         {/* day note */}
         <div style={card}>
           <div style={lbl}>Notatka do treningu</div>
-          <textarea value={dayNote} onChange={e => saveDayNote(e.target.value)}
+          <textarea value={dayNote} onChange={e => setDayNote(e.target.value)}
             placeholder="Ogólne uwagi..."
-            style={{ ...inp, minHeight:65, resize:'vertical', lineHeight:1.6, marginTop:4 }} />
+            style={{ ...inp, minHeight:65, resize:'vertical', lineHeight:1.6, marginTop:4, fontSize:14, color:T.text }} />
+          <button style={{ ...b(false, { padding:'5px 14px', fontSize:12, marginTop:8 }) }}
+            onClick={() => saveDayData(dayNote, dayTitle)}>Zapisz notatkę</button>
         </div>
+		
       </div>
     </div>
   )
