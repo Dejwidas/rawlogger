@@ -32,6 +32,8 @@ export default function TodayPage() {
   const [editId, setEditId]     = useState<string|null>(null)
   const [editVal, setEditVal]   = useState('')
   const today = todayStr()
+  const [inlineEx, setInlineEx] = useState<string|null>(null)
+  const [inlineVal, setInlineVal] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -114,6 +116,29 @@ export default function TodayPage() {
       setFavorites(prev => [...prev, name].sort())
     }
   }
+  
+  async function handleInlineAdd(exName: string) {
+  const p = parseSetStr(inlineVal)
+  if (!p) return
+  for (const g of p.groups) {
+    const row: any = {
+      user_id: userId,
+      exercise_name: exName,
+      date: today, // lub date w day/[date]
+      weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
+      reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
+      set_type: g.type,
+      bw_reps: g.type==='bw' ? g.reps : null,
+      timed_seconds: g.type==='timed' ? g.seconds : null,
+      wt_seconds: g.type==='wt' ? g.seconds : null,
+      rest_note: p.rest, set_note: null,
+    }
+    const { data, error } = await supabase.from('training_sets').insert(row).select().single()
+    if (!error && data) setSets(prev => [...prev, data])
+  }
+  setInlineEx(null)
+  setInlineVal('')
+}
 
   const saveDayData = useCallback(async (note: string, title: string) => {
     await supabase.from('training_notes').upsert(
@@ -202,7 +227,24 @@ export default function TodayPage() {
               <button onClick={() => toggleFavorite(exN)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color: favorites.includes(exN) ? T.accent : T.muted, padding:0, lineHeight:1 }}>
                 {favorites.includes(exN) ? '★' : '☆'}
               </button>
+			  
+			  <button onClick={() => { setInlineEx(inlineEx===exN ? null : exN); setInlineVal('') }}
+  style={{ marginLeft:'auto', background:'none', border:`1px solid ${T.border}`, borderRadius:5, padding:'1px 8px', fontSize:10, cursor:'pointer', color:T.muted, fontFamily:'inherit' }}>
+  + seria
+</button>
+
             </div>
+			
+			{inlineEx === exN && (
+  <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+    <input style={{ ...inp, flex:1, fontSize:12, fontFamily:'monospace' }}
+      value={inlineVal} onChange={e => setInlineVal(e.target.value)}
+      placeholder="np. 100x5 lub 60s" autoFocus
+      onKeyDown={e => { if(e.key==='Enter') handleInlineAdd(exN); if(e.key==='Escape') setInlineEx(null) }} />
+    <button style={b(true, { padding:'4px 12px', fontSize:11 })} onClick={() => handleInlineAdd(exN)}>Dodaj</button>
+    <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => setInlineEx(null)}>✕</button>
+  </div>
+)}
 
             {items.map(item => (
               <div key={item.id} style={{ marginBottom:8 }}>

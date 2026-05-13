@@ -53,18 +53,23 @@ export default function FilterPage() {
 
     // load popular — only exercises that exist in exercises table
     const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
-    if (setsData) {
-      const sc: Record<string, Set<string>> = {}
-      setsData.forEach((r: any) => {
-        if (!exSet.has(r.exercise_name)) return
-        if (!sc[r.exercise_name]) sc[r.exercise_name] = new Set()
-        sc[r.exercise_name].add(r.date)
-      })
-      setPopular(Object.entries(sc)
-        .map(([name, dates]) => ({ name, sessions: dates.size }))
-        .sort((a, b) => b.sessions - a.sessions)
-        .slice(0, 20))
-    }
+if (setsData) {
+const sc: Record<string, Set<string>> = {}
+setsData.forEach((r: any) => {
+  const matched = exList.find(e => e.toLowerCase() === r.exercise_name.toLowerCase())
+  if (!matched) return
+  if (!sc[matched]) sc[matched] = new Set()
+  sc[matched].add(r.date)
+})
+  // wszystkie ćwiczenia z exercises, nawet te z 0 sesji
+  const all = exList.map(name => ({
+    name,
+    sessions: sc[name]?.size ?? 0
+  }))
+  // sortuj: najpierw po sesjach malejąco, przy równych alfabetycznie
+  all.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name, 'pl'))
+  setPopular(all)
+}
   }
 
   async function toggleFavorite(name: string) {
