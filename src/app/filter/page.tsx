@@ -95,13 +95,13 @@ async function renameExercise(oldName: string) {
     .update({ name: normalized }).eq('user_id', userId).eq('name', oldName)
   console.log('exercises update:', r1.error, r1.status)
 
-  const r2 = await supabase.from('training_sets')
-    .update({ exercise_name: normalized }).eq('exercise_name', oldName)
-  console.log('training_sets update:', r2.error, r2.status, r2.count)
+const r2 = await supabase.from('training_sets')
+  .update({ exercise_name: normalized })
+  .filter('exercise_name', 'eq', oldName)
 
-  const r3 = await supabase.from('favorite_exercises')
-    .update({ exercise_name: normalized }).eq('exercise_name', oldName)
-  console.log('favorite_exercises update:', r3.error, r3.status)
+const r3 = await supabase.from('favorite_exercises')
+  .update({ exercise_name: normalized })
+  .filter('exercise_name', 'eq', oldName)
 
   setExercises(prev => prev.map(e => e === oldName ? normalized : e).sort())
   setPopular(prev => prev.map(e => e.name === oldName ? { ...e, name: normalized } : e))
