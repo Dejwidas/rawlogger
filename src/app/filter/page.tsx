@@ -79,12 +79,11 @@ export default function FilterPage() {
     setNewExName('')
   }
 
-  async function deleteExercise(name: string) {
-    await supabase.from('exercises').delete().eq('user_id', userId).eq('name', name)
-    setExercises(prev => prev.filter(e => e !== name))
-    setPopular(prev => prev.filter(e => e.name !== name))
-    setConfirmDel(null)
-  }
+async function deleteExercise(name: string) {
+  await supabase.from('exercises').delete().eq('user_id', userId).eq('name', name)
+  setConfirmDel(null)
+  await loadAll()
+}
 
 async function renameExercise(oldName: string) {
   const newName = renameVal.trim()
