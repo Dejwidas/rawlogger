@@ -62,22 +62,35 @@ export default function DayPage() {
     if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
     if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
     setParseErr(''); setSaving(true)
-    for (const g of parsed.groups) {
+for (const g of parsed.groups) {
+  const exNormalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
+  if (g.type === 'weighted') {
+    for (const reps of g.repsArr) {
       const row: any = {
-        user_id: userId,
-        exercise_name: exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase(),
-        date,
-        weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
-        reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
-        set_type: g.type,
-        bw_reps: g.type==='bw' ? g.reps : null,
-        timed_seconds: g.type==='timed' ? g.seconds : null,
-        wt_seconds: g.type==='wt' ? g.seconds : null,
+        user_id: userId, exercise_name: exNormalized, date,
+        weight: g.weight, reps_arr: [reps],
+        set_type: 'weighted', bw_reps: null,
+        timed_seconds: null, wt_seconds: null,
         rest_note: parsed.rest, set_note: null,
       }
       const { data, error } = await supabase.from('training_sets').insert(row).select().single()
       if (!error && data) setSets(prev => [...prev, data])
     }
+  } else {
+    const row: any = {
+      user_id: userId, exercise_name: exNormalized, date,
+      weight: g.type==='wt' ? g.weight : null,
+      reps_arr: g.type==='bw' ? [g.reps] : [],
+      set_type: g.type,
+      bw_reps: g.type==='bw' ? g.reps : null,
+      timed_seconds: g.type==='timed' ? g.seconds : null,
+      wt_seconds: g.type==='wt' ? g.seconds : null,
+      rest_note: parsed.rest, set_note: null,
+    }
+    const { data, error } = await supabase.from('training_sets').insert(row).select().single()
+    if (!error && data) setSets(prev => [...prev, data])
+  }
+}
     const normalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
     const existing = exercises.find(e => e.toLowerCase() === normalized.toLowerCase())
     const finalName = existing || normalized
@@ -87,26 +100,42 @@ export default function DayPage() {
     }
     setSetStr(''); setExName(''); setSaving(false)
   }
+  
+
 
   async function handleInlineAdd(name: string) {
     const p = parseSetStr(inlineVal)
     if (!p) return
-    for (const g of p.groups) {
+for (const g of p.groups) {
+  if (g.type === 'weighted') {
+    for (const reps of g.repsArr) {
       const row: any = {
-        user_id: userId,
-        exercise_name: name,
-        date,
-        weight: g.type==='weighted' ? g.weight : g.type==='wt' ? g.weight : null,
-        reps_arr: g.type==='weighted' ? g.repsArr : g.type==='bw' ? [g.reps] : [],
-        set_type: g.type,
-        bw_reps: g.type==='bw' ? g.reps : null,
-        timed_seconds: g.type==='timed' ? g.seconds : null,
-        wt_seconds: g.type==='wt' ? g.seconds : null,
+        user_id: userId, exercise_name: exName,
+        date: date,
+        weight: g.weight, reps_arr: [reps],
+        set_type: 'weighted', bw_reps: null,
+        timed_seconds: null, wt_seconds: null,
         rest_note: p.rest, set_note: null,
       }
       const { data, error } = await supabase.from('training_sets').insert(row).select().single()
       if (!error && data) setSets(prev => [...prev, data])
     }
+  } else {
+    const row: any = {
+      user_id: userId, exercise_name: exName,
+      date: date,
+      weight: g.type==='wt' ? g.weight : null,
+      reps_arr: g.type==='bw' ? [g.reps] : [],
+      set_type: g.type,
+      bw_reps: g.type==='bw' ? g.reps : null,
+      timed_seconds: g.type==='timed' ? g.seconds : null,
+      wt_seconds: g.type==='wt' ? g.seconds : null,
+      rest_note: p.rest, set_note: null,
+    }
+    const { data, error } = await supabase.from('training_sets').insert(row).select().single()
+    if (!error && data) setSets(prev => [...prev, data])
+  }
+}
     setInlineEx(null)
     setInlineVal('')
   }
