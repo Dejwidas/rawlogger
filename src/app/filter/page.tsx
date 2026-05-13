@@ -41,22 +41,21 @@ export default function FilterPage() {
   }, [])
 
   async function loadAll() {
-    const { data: exData } = await supabase.from('exercises').select('name').order('name')
-    setExercises(exData?.map((e: any) => e.name) ?? [])
-    const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
-    setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
-    const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
-    if (setsData) {
-      const sc: Record<string, Set<string>> = {}
-      setsData.forEach((r: any) => {
-        if (!sc[r.exercise_name]) sc[r.exercise_name] = new Set()
-        sc[r.exercise_name].add(r.date)
-      })
-      setPopular(Object.entries(sc)
-        .map(([name, dates]) => ({ name, sessions: dates.size }))
-        .sort((a, b) => b.sessions - a.sessions)
-        .slice(0, 20))
-    }
+const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
+const { data: exData2 } = await supabase.from('exercises').select('name')
+const exSet = new Set(exData2?.map((e: any) => e.name) ?? [])
+if (setsData) {
+  const sc: Record<string, Set<string>> = {}
+  setsData.forEach((r: any) => {
+    if (!exSet.has(r.exercise_name)) return // pomiń usunięte ćwiczenia
+    if (!sc[r.exercise_name]) sc[r.exercise_name] = new Set()
+    sc[r.exercise_name].add(r.date)
+  })
+  setPopular(Object.entries(sc)
+    .map(([name, dates]) => ({ name, sessions: dates.size }))
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 20))
+}
   }
 
   async function toggleFavorite(name: string) {
