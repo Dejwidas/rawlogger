@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 const T = { surface2:'#222', border:'#2a2a2a', muted2:'#888', accent:'#c8f135' }
 
 const VIEWS = [
-  ['/today','Dzisiaj'],['/calendar','Kalendarz'],['/records','Rekordy'],['/filter','Wyszukaj'],['/volume','Objętość']
+  ['/today','Dzisiaj'],['/calendar','Kalendarz'],['/plans','Plany'],['/filter','Wyszukaj'],['/tools','Narzędzia']
 ] as const
 
 export default function Nav({ email }: { email: string }) {

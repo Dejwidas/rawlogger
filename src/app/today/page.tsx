@@ -51,6 +51,16 @@ export default function TodayPage() {
       setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
     })
   }, [])
+  
+  useEffect(() => {
+  const handler = () => setAcOpen(false)
+  document.addEventListener('touchstart', handler)
+  document.addEventListener('mousedown', handler)
+  return () => {
+    document.removeEventListener('touchstart', handler)
+    document.removeEventListener('mousedown', handler)
+  }
+}, [])
 
   const parsed    = setStr.trim() ? parseSetStr(setStr) : null
   const acMatches = exName.trim() ? exercises.filter(e => e.toLowerCase().includes(exName.toLowerCase())) : []
@@ -210,16 +220,24 @@ for (const g of p.groups) {
             <input style={inp} value={exName} onChange={e=>{setExName(e.target.value);setAcOpen(true);setParseErr('')}}
               placeholder="np. Wyciskanie sztangi" autoComplete="off"
               onKeyDown={e=>{if(e.key==='Escape')setAcOpen(false);if(e.key==='Enter')document.getElementById('rl-setstr')?.focus()}} />
-            {acOpen && acMatches.length > 0 && (
-              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:T.surface, border:`1px solid ${T.border2}`, borderRadius:7, zIndex:10, maxHeight:150, overflowY:'auto' }}>
-                {acMatches.map(m => (
-                  <div key={m} onMouseDown={()=>{setExName(m);setAcOpen(false)}}
-                    style={{ padding:'8px 10px', fontSize:13, cursor:'pointer', color:T.text, fontFamily:'monospace' }}
-                    onMouseEnter={e=>(e.currentTarget.style.background=T.surface2)}
-                    onMouseLeave={e=>(e.currentTarget.style.background='')}>{m}</div>
-                ))}
-              </div>
-            )}
+{acOpen && exName.trim() && (
+  <div style={{ position:'absolute', top:'100%', left:0, right:0, background:T.surface, border:`1px solid ${T.border2}`, borderRadius:7, zIndex:10, maxHeight:150, overflowY:'auto' }}>
+    {acMatches.map(m => (
+      <div key={m} onMouseDown={()=>{setExName(m);setAcOpen(false)}}
+        style={{ padding:'8px 10px', fontSize:13, cursor:'pointer', color:T.text, fontFamily:'monospace' }}
+        onMouseEnter={e=>(e.currentTarget.style.background=T.surface2)}
+        onMouseLeave={e=>(e.currentTarget.style.background='')}>{m}</div>
+    ))}
+    {!acMatches.some(m => m.toLowerCase() === exName.trim().toLowerCase()) && (
+      <div onMouseDown={()=>setAcOpen(false)}
+        style={{ padding:'8px 10px', fontSize:12, cursor:'pointer', color:T.accent, borderTop:`1px solid ${T.border}`, fontFamily:'monospace' }}
+        onMouseEnter={e=>(e.currentTarget.style.background=T.surface2)}
+        onMouseLeave={e=>(e.currentTarget.style.background='')}>
+        + dodaj nowe: „{exName.trim()}"
+      </div>
+    )}
+  </div>
+)}
           </div>
 
           <div style={lbl}>Serie (np. 100x5x5x5 lub 80x8 lub 10x20s)</div>
