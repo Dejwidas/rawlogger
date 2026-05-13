@@ -24,8 +24,6 @@ export default function FilterPage() {
   const [results, setResults]     = useState<any[]|null>(null)
   const [showFavOnly, setShowFavOnly] = useState(false)
   const [showManage, setShowManage]   = useState(false)
-
-  // manage state
   const [newExName, setNewExName]     = useState('')
   const [renameId, setRenameId]       = useState<string|null>(null)
   const [renameVal, setRenameVal]     = useState('')
@@ -36,26 +34,37 @@ export default function FilterPage() {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      await loadAll()
+      await loadAll(session.user.id)
     })
   }, [])
 
-  async function loadAll() {
-const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
-const { data: exData2 } = await supabase.from('exercises').select('name')
-const exSet = new Set(exData2?.map((e: any) => e.name) ?? [])
-if (setsData) {
-  const sc: Record<string, Set<string>> = {}
-  setsData.forEach((r: any) => {
-    if (!exSet.has(r.exercise_name)) return // pomiń usunięte ćwiczenia
-    if (!sc[r.exercise_name]) sc[r.exercise_name] = new Set()
-    sc[r.exercise_name].add(r.date)
-  })
-  setPopular(Object.entries(sc)
-    .map(([name, dates]) => ({ name, sessions: dates.size }))
-    .sort((a, b) => b.sessions - a.sessions)
-    .slice(0, 20))
-}
+  async function loadAll(uid?: string) {
+    const id = uid ?? userId
+
+    // load exercises
+    const { data: exData } = await supabase.from('exercises').select('name').order('name')
+    const exList = exData?.map((e: any) => e.name) ?? []
+    setExercises(exList)
+    const exSet = new Set(exList)
+
+    // load favorites
+    const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
+    setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
+
+    // load popular — only exercises that exist in exercises table
+    const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
+    if (setsData) {
+      const sc: Record<string, Set<string>> = {}
+      setsData.forEach((r: any) => {
+        if (!exSet.has(r.exercise_name)) return
+        if (!sc[r.exercise_name]) sc[r.exercise_name] = new Set()
+        sc[r.exercise_name].add(r.date)
+      })
+      setPopular(Object.entries(sc)
+        .map(([name, dates]) => ({ name, sessions: dates.size }))
+        .sort((a, b) => b.sessions - a.sessions)
+        .slice(0, 20))
+    }
   }
 
   async function toggleFavorite(name: string) {
@@ -78,34 +87,33 @@ if (setsData) {
     setNewExName('')
   }
 
-async function deleteExercise(name: string) {
-  await supabase.from('exercises').delete().eq('user_id', userId).eq('name', name)
-  setConfirmDel(null)
-  await loadAll()
-}
+  async function deleteExercise(name: string) {
+    await supabase.from('exercises').delete().eq('user_id', userId).eq('name', name)
+    setConfirmDel(null)
+    await loadAll()
+  }
 
-async function renameExercise(oldName: string) {
-  const newName = renameVal.trim()
-  if (!newName || newName === oldName) { setRenameId(null); return }
-  const normalized = newName.charAt(0).toUpperCase() + newName.slice(1).toLowerCase()
+  async function renameExercise(oldName: string) {
+    const newName = renameVal.trim()
+    if (!newName || newName === oldName) { setRenameId(null); return }
+    const normalized = newName.charAt(0).toUpperCase() + newName.slice(1).toLowerCase()
 
-  const r1 = await supabase.from('exercises')
-    .update({ name: normalized }).eq('user_id', userId).eq('name', oldName)
-  console.log('exercises update:', r1.error, r1.status)
+    await supabase.from('exercises')
+      .update({ name: normalized }).eq('user_id', userId).eq('name', oldName)
 
-const r2 = await supabase.from('training_sets')
-  .update({ exercise_name: normalized })
-  .filter('exercise_name', 'eq', oldName)
+    await supabase.from('training_sets')
+      .update({ exercise_name: normalized })
+      .filter('exercise_name', 'eq', oldName)
 
-const r3 = await supabase.from('favorite_exercises')
-  .update({ exercise_name: normalized })
-  .filter('exercise_name', 'eq', oldName)
+    await supabase.from('favorite_exercises')
+      .update({ exercise_name: normalized })
+      .filter('exercise_name', 'eq', oldName)
 
-  setExercises(prev => prev.map(e => e === oldName ? normalized : e).sort())
-  setPopular(prev => prev.map(e => e.name === oldName ? { ...e, name: normalized } : e))
-  setFavorites(prev => prev.map(f => f === oldName ? normalized : f))
-  setRenameId(null)
-}
+    setExercises(prev => prev.map(e => e === oldName ? normalized : e).sort())
+    setPopular(prev => prev.map(e => e.name === oldName ? { ...e, name: normalized } : e))
+    setFavorites(prev => prev.map(f => f === oldName ? normalized : f))
+    setRenameId(null)
+  }
 
   async function doFilter(name?: string) {
     const query = (name ?? q).trim()
@@ -141,7 +149,6 @@ const r3 = await supabase.from('favorite_exercises')
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
         <div style={card}>
 
-          {/* header */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em' }}>Wyszukaj</div>
             <div style={{ display:'flex', gap:8 }}>
@@ -159,9 +166,7 @@ const r3 = await supabase.from('favorite_exercises')
           </div>
 
           {showManage ? (
-            /* ── manage panel ── */
             <div>
-              {/* add new */}
               <div style={lbl}>Dodaj nowe ćwiczenie</div>
               <div style={{ display:'flex', gap:8, marginTop:4, marginBottom:16 }}>
                 <input style={{ ...inp, flex:1 }} value={newExName}
@@ -171,13 +176,11 @@ const r3 = await supabase.from('favorite_exercises')
                 <button style={b(true, { padding:'7px 14px' })} onClick={addExercise}>Dodaj</button>
               </div>
 
-              {/* list */}
               <div style={lbl}>Lista ćwiczeń ({exercises.length})</div>
               <div style={{ marginTop:6 }}>
                 {exercises.map(ex => (
                   <div key={ex} style={{ borderBottom:`1px solid ${T.border}`, padding:'6px 0' }}>
                     {renameId === ex ? (
-                      /* rename inline */
                       <div style={{ display:'flex', gap:6 }}>
                         <input style={{ ...inp, flex:1, fontSize:12 }} value={renameVal}
                           onChange={e => setRenameVal(e.target.value)} autoFocus
@@ -186,7 +189,6 @@ const r3 = await supabase.from('favorite_exercises')
                         <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => setRenameId(null)}>✕</button>
                       </div>
                     ) : confirmDel === ex ? (
-                      /* confirm delete */
                       <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12 }}>
                         <span style={{ color:T.danger, flex:1 }}>Usunąć „{ex}"?</span>
                         <button style={b(false, { padding:'3px 10px', fontSize:11, borderColor:T.danger, color:T.danger })}
@@ -194,7 +196,6 @@ const r3 = await supabase.from('favorite_exercises')
                         <button style={b(false, { padding:'3px 10px', fontSize:11 })} onClick={() => setConfirmDel(null)}>Anuluj</button>
                       </div>
                     ) : (
-                      /* normal row */
                       <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:13 }}>
                         <button onClick={() => toggleFavorite(ex)}
                           style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color: favorites.includes(ex) ? T.accent : T.muted, padding:0, lineHeight:1 }}>
@@ -214,7 +215,6 @@ const r3 = await supabase.from('favorite_exercises')
             </div>
 
           ) : (
-            /* ── search panel ── */
             <>
               <div style={lbl}>Szukaj po nazwie</div>
               <div style={{ position:'relative', marginBottom:10, marginTop:4 }}>
