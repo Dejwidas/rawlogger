@@ -22,7 +22,7 @@ export default function PlansPage() {
   const [adding, setAdding]   = useState(false)
   const [confirmDel, setConfirmDel] = useState<string|null>(null)
   const [editContent, setEditContent] = useState('')
-  const [showHelp, setShowHelp] = useState(false)
+
 
 useEffect(() => {
   if (activePlan) setEditContent(activePlan.content ?? '')

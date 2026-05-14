@@ -256,10 +256,10 @@ for (const g of p.groups) {
 )}
           </div>
 
-                    <div style={{ display:'flex', alignItems:'center', gap:6, ...lbl }}>
-  Serie (np. 100x5x5x5 lub 80x8 lub 80*5 lub 20s lub 10)
+                    <div style={{ display:'flex', alignItems:'center', gap:6, ...lbl, textTransform:'none' }}>
+  Serie (np. 80x8 lub 80*5 lub 20s lub 10)
   <button onClick={() => setShowHelp(!showHelp)}
-    style={{ background:'none', border:`1px solid ${T.border2}`, borderRadius:'50%', width:16, height:16, fontSize:10, cursor:'pointer', color:T.muted2, padding:0, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', flexShrink:0 }}>
+    style={{ background:T.surface2, border:`1px solid ${T.border2}`, borderRadius:'50%', width:20, height:20, fontSize:12, cursor:'pointer', color:T.accent, padding:0, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', flexShrink:0 }}>
     ?
   </button>
 </div>
