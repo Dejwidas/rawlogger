@@ -37,6 +37,7 @@ export default function DayPage() {
   const [editVal, setEditVal]       = useState('')
   const [inlineEx, setInlineEx]     = useState<string|null>(null)
   const [inlineVal, setInlineVal]   = useState('')
+  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -255,7 +256,37 @@ for (const g of p.groups) {
 )}
           </div>
 
-          <div style={lbl}>Serie (np. 100x5x5x5 lub 80x8 lub 10x20s)</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, ...lbl }}>
+  Serie (np. 100x5x5x5 lub 80x8 lub 80*5 lub 20s lub 10)
+  <button onClick={() => setShowHelp(!showHelp)}
+    style={{ background:'none', border:`1px solid ${T.border2}`, borderRadius:'50%', width:16, height:16, fontSize:10, cursor:'pointer', color:T.muted2, padding:0, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', flexShrink:0 }}>
+    ?
+  </button>
+</div>
+{showHelp && (
+  <div style={{ background:T.surface2, border:`1px solid ${T.border}`, borderRadius:8, padding:'12px 14px', marginBottom:10, fontSize:12, lineHeight:1.9, color:T.muted2 }}>
+    <div style={{ fontWeight:600, color:T.text, marginBottom:8, fontSize:11, textTransform:'uppercase', letterSpacing:'0.04em' }}>Formaty zapisu serii</div>
+    {[
+      ['100x5x5x5', '3 serie, 100 kg, po 5 powt.'],
+      ['100x5x3', '2 serie, 100 kg — 5 i 3 powt.'],
+      ['80x8', '1 seria, 80 kg, 8 powt.'],
+      ['100x5 110x3', '2 grupy z różnym ciężarem'],
+      ['10', '1 seria, 10 powt. bez obciążenia'],
+      ['10 10 10', '3 serie po 10 powt. bez obciążenia'],
+      ['30s', '1 seria, 30 sekund'],
+      ['30s 25s 20s', '3 serie czasowe: 30s, 25s, 20s'],
+      ['10x30s', '1 seria, 10 kg, 30 sekund'],
+      ['100x5 (90s)', 'serie + przerwa 90s w nawiasie'],
+    ].map(([ex, desc]) => (
+      <div key={ex} style={{ display:'flex', gap:12, marginBottom:2 }}>
+        <span style={{ fontFamily:'monospace', color:T.accent, minWidth:140 }}>{ex}</span>
+        <span>{desc}</span>
+      </div>
+    ))}
+    <div style={{ marginTop:8, fontSize:11, color:T.muted }}>Separator x lub * — działa tak samo.</div>
+  </div>
+)}
+
           <div style={{ display:'flex', gap:8, marginBottom:6, marginTop:4 }}>
             <input id="rl-setstr" style={{ ...inp, flex:1 }} value={setStr}
               onChange={e => { setSetStr(e.target.value); setParseErr('') }}
