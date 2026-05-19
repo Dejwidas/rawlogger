@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from '@vercel/analytics/next'
+
 export const metadata: Metadata = { title: 'rawlogger', description: 'surowy dziennik treningowy' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -8,7 +9,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ margin: 0, background: '#0e0e0e', color: '#e8e8e8',
         fontFamily: 'system-ui, sans-serif', minHeight: '100vh' }}>
         {children}
-		 <Analytics />
+        <Analytics />
       </body>
     </html>
   )
