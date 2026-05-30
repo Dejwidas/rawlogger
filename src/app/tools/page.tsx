@@ -49,16 +49,21 @@ export default function ToolsPage() {
     })
   }, [])
 
-  async function loadFavoriteRecords(favs: string[]) {
-    const all: any[] = []
-    for (const fav of favs) {
-      const { data } = await supabase.from('training_sets').select('*')
-        .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
-      if (data && data.length > 0) all.push(data[0])
+
+async function loadFavoriteRecords(favs: string[]) {
+  const all: any[] = []
+  const seenIds = new Set<string>()
+  for (const fav of favs) {
+    const { data } = await supabase.from('training_sets').select('*')
+      .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
+    if (data && data.length > 0 && !seenIds.has(data[0].id)) {
+      seenIds.add(data[0].id)
+      all.push(data[0])
     }
-    all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-    setRecResults(all)
   }
+  all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+  setRecResults(all)
+}
 
   async function searchRecords() {
     if (showFavOnly && favorites.length > 0) {
@@ -68,7 +73,10 @@ export default function ToolsPage() {
         if (recFrom) q = q.gte('date', recFrom)
         if (recTo)   q = q.lte('date', recTo)
         const { data } = await q
-        if (data && data.length > 0) all.push(data[0])
+        if (data && data.length > 0 && !seenIds.has(data[0].id)) {
+    seenIds.add(data[0].id)
+    all.push(data[0])
+  }
       }
       all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
       setRecResults(all)
@@ -118,7 +126,7 @@ export default function ToolsPage() {
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
-      <Nav email={email} />
+      <Nav />
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
 
         {/* tool selector */}

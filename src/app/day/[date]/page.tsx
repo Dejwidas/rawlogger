@@ -45,7 +45,7 @@ export default function DayPage() {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', date).order('created_at')
+      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', today).order('display_order', { ascending: true }).order('created_at', { ascending: true })
       setSets(setsData ?? [])
       const order: string[] = []
       setsData?.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
@@ -145,7 +145,7 @@ export default function DayPage() {
     setSets(prev => prev.filter(s => s.id !== id))
   }
   
-  function moveGroup(exN: string, dir: -1 | 1) {
+async function moveGroup(exN: string, dir: -1 | 1) {
   const idx = groupOrder.indexOf(exN)
   const newIdx = idx + dir
   if (newIdx < 0 || newIdx >= groupOrder.length) return
@@ -153,6 +153,13 @@ export default function DayPage() {
   updated.splice(idx, 1)
   updated.splice(newIdx, 0, exN)
   setGroupOrder(updated)
+  for (let i = 0; i < updated.length; i++) {
+    await supabase.from('training_sets')
+      .update({ display_order: i })
+      .eq('user_id', userId)
+      .eq('exercise_name', updated[i])
+      .eq('date', date)
+  }
 }
 
   async function toggleFavorite(name: string) {
@@ -177,7 +184,7 @@ export default function DayPage() {
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
-      <Nav email={email} />
+      <Nav />
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
 
         {!isToday && (

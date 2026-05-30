@@ -15,22 +15,24 @@ export default function LoginPage() {
   const [pass2, setPass2] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  const [terms, setTerms] = useState(false)
 
-  async function submit() {
-    setErr(''); setLoading(true)
-    try {
-      if (mode === 'reg') {
-        if (pass !== pass2) { setErr('Hasła się różnią'); return }
-        if (pass.length < 6) { setErr('Hasło min. 6 znaków'); return }
-        const { error } = await supabase.auth.signUp({ email, password: pass })
-        if (error) { setErr(error.message); return }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-        if (error) { setErr('Błędny email lub hasło'); return }
-      }
-      router.replace('/today')
-    } finally { setLoading(false) }
-  }
+async function submit() {
+  setErr(''); setLoading(true)
+  try {
+    if (mode === 'reg') {
+      if (!terms) { setErr('Zaakceptuj regulamin i politykę prywatności'); return }
+      if (pass !== pass2) { setErr('Hasła się różnią'); return }
+      if (pass.length < 6) { setErr('Hasło min. 6 znaków'); return }
+      const { error } = await supabase.auth.signUp({ email, password: pass })
+      if (error) { setErr(error.message); return }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
+      if (error) { setErr('Błędny email lub hasło'); return }
+    }
+    router.replace('/today')
+  } finally { setLoading(false) }
+}
 
   return (
     <div style={{ maxWidth:300, margin:'3rem auto', padding:'0 1rem' }}>
@@ -44,6 +46,18 @@ export default function LoginPage() {
         <div style={{ fontSize:11, color:T.muted2, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.04em' }}>Powtórz hasło</div>
         <input style={inp} type="password" value={pass2} onChange={e=>setPass2(e.target.value)} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&submit()} />
       </>}
+	  {mode === 'reg' && (
+  <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:14, marginTop:4 }}>
+    <input type="checkbox" id="terms" checked={terms} onChange={e => setTerms(e.target.checked)}
+      style={{ marginTop:2, accentColor:T.accent, cursor:'pointer' }} />
+    <label htmlFor="terms" style={{ fontSize:12, color:T.muted2, lineHeight:1.6, cursor:'pointer' }}>
+      Akceptuję{' '}
+      <a href="/terms" target="_blank" style={{ color:T.accent }}>Regulamin</a>
+      {' '}oraz{' '}
+      <a href="/privacy" target="_blank" style={{ color:T.accent }}>Politykę Prywatności</a>
+    </label>
+  </div>
+)}
       {err && <p style={{ fontSize:12, color:T.danger, marginBottom:10 }}>{err}</p>}
       <div style={{ display:'flex', gap:8, marginTop:4 }}>
         <button style={b(true)} onClick={submit} disabled={loading}>{loading?'...':(mode==='login'?'Zaloguj':'Utwórz konto')}</button>
