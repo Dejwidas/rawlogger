@@ -17,30 +17,13 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
 
  useEffect(() => {
-  // Pobierz token z hash URL
-  const hash = window.location.hash
-    console.log('hash:', window.location.hash)
-  console.log('href:', window.location.href)
-  if (hash) {
-    const params = new URLSearchParams(hash.substring(1))
-    const accessToken = params.get('access_token')
-    const refreshToken = params.get('refresh_token')
-    const type = params.get('type')
-
-    if (type === 'recovery' && accessToken && refreshToken) {
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      }).then(({ error }) => {
-        if (error) {
-          setErr('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
-        } else {
-          setReady(true)
-        }
-      })
-    } else {
-      setErr('Nieprawidłowy link resetujący.')
-    }
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('code')
+  if (code) {
+    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+      if (error) setErr('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
+      else setReady(true)
+    })
   } else {
     setErr('Brak tokenu w URL. Wróć do emaila i kliknij link ponownie.')
   }
