@@ -17,6 +17,11 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
 
 useEffect(() => {
+	
+	 console.log('hash:', window.location.hash)
+  console.log('href:', window.location.href)
+  
+  
   const hash = window.location.hash
   if (hash) {
     const params = new URLSearchParams(hash.substring(1))
