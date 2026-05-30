@@ -109,7 +109,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
-      <Nav email={email} />
+      <Nav />
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
 
         {/* nick */}
