@@ -11,73 +11,77 @@ const inp: React.CSSProperties = { width:'100%', background:T.surface2, border:`
 const lbl: React.CSSProperties = { fontSize:11, color:T.muted2, marginBottom:4, letterSpacing:'0.04em', textTransform:'uppercase' as const }
 const fmtDate = (s: string) => { const [y,m,d]=s.split('-'); return `${d}.${m}.${y}` }
 
-type Tool = 'records' | 'volume' | null
+type Tool = 'records' | 'volume' | 'weight' | null
 
 export default function ToolsPage() {
   const router = useRouter()
-  const [email, setEmail]         = useState('')
   const [exercises, setExercises] = useState<string[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [activeTool, setActiveTool] = useState<Tool>(null)
 
-  // records state
-  const [recQ, setRecQ]       = useState('')
-  const [recFrom, setRecFrom] = useState('')
-  const [recTo, setRecTo]     = useState('')
+  // records
+  const [recQ, setRecQ]           = useState('')
+  const [recFrom, setRecFrom]     = useState('')
+  const [recTo, setRecTo]         = useState('')
   const [recAcOpen, setRecAcOpen] = useState(false)
   const [recResults, setRecResults] = useState<any[]|null>(null)
   const [showFavOnly, setShowFavOnly] = useState(false)
 
-  // volume state
-  const [volQ, setVolQ]       = useState('')
-  const [volFrom, setVolFrom] = useState('')
-  const [volTo, setVolTo]     = useState('')
+  // volume
+  const [volQ, setVolQ]           = useState('')
+  const [volFrom, setVolFrom]     = useState('')
+  const [volTo, setVolTo]         = useState('')
   const [volAcOpen, setVolAcOpen] = useState(false)
   const [volResult, setVolResult] = useState<{total:number,setCount:number,sessions:number}|null>(null)
+
+  // weight
+  const [bodyWeights, setBodyWeights] = useState<{id:string,weight:number,date:string}[]>([])
+  const [weightVal, setWeightVal]     = useState('')
+  const [weightDate, setWeightDate]   = useState(new Date().toISOString().slice(0,10))
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
-      setEmail(session.user.email ?? '')
       const { data: exData } = await supabase.from('exercises').select('name').order('name')
       setExercises(exData?.map((e: any) => e.name) ?? [])
       const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name').order('exercise_name')
       const favs = favData?.map((f: any) => f.exercise_name) ?? []
       setFavorites(favs)
+      const { data: bwData } = await supabase.from('body_weight').select('*').order('date', { ascending: true })
+      setBodyWeights(bwData ?? [])
       if (favs.length > 0) await loadFavoriteRecords(favs)
       setActiveTool('records')
     })
   }, [])
 
-
-async function loadFavoriteRecords(favs: string[]) {
-  const all: any[] = []
-  const seenIds = new Set<string>()
-  for (const fav of favs) {
-    const { data } = await supabase.from('training_sets').select('*')
-      .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
-    if (data && data.length > 0 && !seenIds.has(data[0].id)) {
-      seenIds.add(data[0].id)
-      all.push(data[0])
+  async function loadFavoriteRecords(favs: string[]) {
+    const all: any[] = []
+    const seenIds = new Set<string>()
+    for (const fav of favs) {
+      const { data } = await supabase.from('training_sets').select('*')
+        .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
+      if (data && data.length > 0 && !seenIds.has(data[0].id)) {
+        seenIds.add(data[0].id)
+        all.push(data[0])
+      }
     }
+    all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
+    setRecResults(all)
   }
-  all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
-  setRecResults(all)
-}
 
   async function searchRecords() {
     if (showFavOnly && favorites.length > 0) {
       const all: any[] = []
-	  const seenIds = new Set<string>() 
+      const seenIds = new Set<string>()
       for (const fav of favorites) {
         let q = supabase.from('training_sets').select('*').ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
         if (recFrom) q = q.gte('date', recFrom)
         if (recTo)   q = q.lte('date', recTo)
         const { data } = await q
         if (data && data.length > 0 && !seenIds.has(data[0].id)) {
-    seenIds.add(data[0].id)
-    all.push(data[0])
-  }
+          seenIds.add(data[0].id)
+          all.push(data[0])
+        }
       }
       all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
       setRecResults(all)
@@ -93,21 +97,47 @@ async function loadFavoriteRecords(favs: string[]) {
 
   async function calcVolume() {
     if (!volQ.trim()) return
-    let query = supabase.from('training_sets').select('weight, reps_arr, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds, date')
+    let query = supabase.from('training_sets')
+      .select('weight, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds, date')
       .ilike('exercise_name', volQ.trim())
     if (volFrom) query = query.gte('date', volFrom)
     if (volTo)   query = query.lte('date', volTo)
     const { data } = await query
     if (!data) return
     const sessions = new Set(data.map((r: any) => r.date)).size
-    let total = 0, setCount = data.length
+    let total = 0
+    const setCount = data.length
     data.forEach((r: any) => {
       if (r.set_type === 'weighted') total += volOf(r.weight ?? 0, r.reps_arr ?? [])
-      else if (r.set_type === 'wt')  total += r.bw_reps ?? 0
       else if (r.set_type === 'timed') total += r.timed_seconds?.reduce((a: number, t: number) => a+t, 0) ?? 0
-      else if (r.set_type === 'wt')  total += (r.weight ?? 0) * (r.wt_seconds ?? 0)
+      else if (r.set_type === 'wt') total += (r.weight ?? 0) * (r.wt_seconds ?? 0)
+      else total += r.bw_reps ?? 0
     })
     setVolResult({ total, setCount, sessions })
+  }
+
+  async function addWeight() {
+    if (!weightVal) return
+    const w = parseFloat(weightVal.replace(',', '.'))
+    if (isNaN(w)) return
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const { data, error } = await supabase.from('body_weight').upsert(
+      { user_id: session.user.id, weight: w, date: weightDate },
+      { onConflict: 'user_id,date' }
+    ).select().single()
+    if (!error && data) {
+      setBodyWeights(prev => {
+        const filtered = prev.filter(e => e.date !== data.date)
+        return [...filtered, data].sort((a,b) => a.date.localeCompare(b.date))
+      })
+      setWeightVal('')
+    }
+  }
+
+  async function deleteWeight(id: string) {
+    await supabase.from('body_weight').delete().eq('id', id)
+    setBodyWeights(prev => prev.filter(e => e.id !== id))
   }
 
   const recAcMatches = recQ.trim() ? exercises.filter(e => e.toLowerCase().includes(recQ.toLowerCase())) : []
@@ -119,11 +149,14 @@ async function loadFavoriteRecords(favs: string[]) {
     fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight: primary ? 600 : 400, ...extra
   })
 
-  function volUnit(type: string): string {
-    if (type === 'weighted') return ' kg'
-    if (type === 'timed') return 's'
-    return ' powt.'
-  }
+  // weight chart helpers
+  const chartWeights = bodyWeights.slice(-20)
+  const minW = chartWeights.length ? Math.min(...chartWeights.map(w=>w.weight)) - 1 : 0
+  const maxW = chartWeights.length ? Math.max(...chartWeights.map(w=>w.weight)) + 1 : 100
+  const range = maxW - minW || 1
+  const CW = 600, CH = 160, pad = 32
+  const cx = (i: number) => pad + (i / Math.max(chartWeights.length-1,1)) * (CW - pad*2)
+  const cy = (w: number) => CH - pad - ((w - minW) / range) * (CH - pad*2)
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
@@ -133,12 +166,15 @@ async function loadFavoriteRecords(favs: string[]) {
         {/* tool selector */}
         <div style={card}>
           <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Narzędzia</div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             <button style={{ ...b(activeTool==='records'), flex:1 }} onClick={() => setActiveTool(activeTool==='records'?null:'records')}>
               Moje rekordy
             </button>
             <button style={{ ...b(activeTool==='volume'), flex:1 }} onClick={() => setActiveTool(activeTool==='volume'?null:'volume')}>
               Kalkulator objętości
+            </button>
+            <button style={{ ...b(activeTool==='weight'), flex:1 }} onClick={() => setActiveTool(activeTool==='weight'?null:'weight')}>
+              Masa ciała
             </button>
           </div>
         </div>
@@ -153,7 +189,6 @@ async function loadFavoriteRecords(favs: string[]) {
                 ★ ulubione
               </button>
             </div>
-
             <div style={lbl}>Ćwiczenie (opcjonalnie)</div>
             <div style={{ position:'relative', marginBottom:10, marginTop:4 }}>
               <input style={inp} value={recQ} onChange={e => { setRecQ(e.target.value); setRecAcOpen(true) }}
@@ -176,7 +211,6 @@ async function loadFavoriteRecords(favs: string[]) {
               <input type="date" value={recTo}   onChange={e => setRecTo(e.target.value)}   style={{ ...inp, flex:1 }} />
             </div>
             <button style={{ ...b(true), marginBottom:16 }} onClick={searchRecords}>Szukaj</button>
-
             {recResults !== null && recResults.length === 0 && <p style={{ fontSize:12, color:T.muted }}>Brak danych.</p>}
             {recResults && recResults.length > 0 && (
               <>
@@ -202,7 +236,7 @@ async function loadFavoriteRecords(favs: string[]) {
           </div>
         )}
 
-        {/* volume calculator */}
+        {/* volume */}
         {activeTool === 'volume' && (
           <div style={card}>
             <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Kalkulator objętości</div>
@@ -239,6 +273,78 @@ async function loadFavoriteRecords(favs: string[]) {
             )}
           </div>
         )}
+
+        {/* weight */}
+        {activeTool === 'weight' && (
+          <div style={card}>
+            <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Masa ciała</div>
+
+            {/* add entry */}
+            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
+              <input type="date" value={weightDate} onChange={e => setWeightDate(e.target.value)}
+                style={{ ...inp, flex:'0 0 140px' }} />
+              <input style={{ ...inp, flex:1 }} value={weightVal} onChange={e => setWeightVal(e.target.value)}
+                placeholder="kg (np. 82.5)" onKeyDown={e => e.key==='Enter' && addWeight()} />
+              <button style={b(true, { padding:'7px 14px' })} onClick={addWeight}>Dodaj</button>
+            </div>
+
+            {/* chart */}
+            {chartWeights.length >= 2 && (
+              <div style={{ marginBottom:16, background:T.surface2, borderRadius:8, padding:'12px 8px' }}>
+                <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display:'block' }}>
+                  {[0,0.25,0.5,0.75,1].map(t => {
+                    const yw = CH - pad - t*(CH-pad*2)
+                    const wv = minW + t*range
+                    return (
+                      <g key={t}>
+                        <line x1={pad} y1={yw} x2={CW-pad} y2={yw} stroke="#2a2a2a" strokeWidth="1"/>
+                        <text x={pad-4} y={yw+4} textAnchor="end" fontSize="9" fill="#555">{wv.toFixed(1)}</text>
+                      </g>
+                    )
+                  })}
+                  <polyline points={chartWeights.map((w,i)=>`${cx(i)},${cy(w.weight)}`).join(' ')}
+                    fill="none" stroke={T.accent} strokeWidth="2"/>
+                  {chartWeights.map((w,i) => (
+                    <g key={w.id}>
+                      <circle cx={cx(i)} cy={cy(w.weight)} r="3" fill={T.accent}/>
+                      <text x={cx(i)} y={CH-4} textAnchor="middle" fontSize="8" fill="#555">
+                        {w.date.slice(5).replace('-','.')}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              </div>
+            )}
+            {chartWeights.length < 2 && (
+              <p style={{ fontSize:12, color:T.muted, marginBottom:12 }}>Dodaj co najmniej 2 wpisy aby zobaczyć wykres.</p>
+            )}
+
+            {/* stats */}
+            {bodyWeights.length > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:T.muted2, marginBottom:12, flexWrap:'wrap', gap:8 }}>
+                <span>Ostatni: <span style={{ color:T.accent }}>{bodyWeights[bodyWeights.length-1].weight} kg</span></span>
+                <span>Wpisów: {bodyWeights.length}</span>
+                {bodyWeights.length >= 2 && (
+                  <span>Zmiana: <span style={{ color: bodyWeights[bodyWeights.length-1].weight >= bodyWeights[0].weight ? '#ff4444' : T.accent }}>
+                    {(bodyWeights[bodyWeights.length-1].weight - bodyWeights[0].weight).toFixed(1)} kg
+                  </span></span>
+                )}
+              </div>
+            )}
+
+            {/* list */}
+            {bodyWeights.length === 0 && <p style={{ fontSize:12, color:T.muted }}>Brak wpisów.</p>}
+            {[...bodyWeights].reverse().slice(0,10).map(w => (
+              <div key={w.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 0', borderBottom:`1px solid ${T.border}`, fontSize:12 }}>
+                <span style={{ color:T.muted2, fontFamily:'monospace' }}>{fmtDate(w.date)}</span>
+                <span style={{ color:T.accent, fontWeight:600, fontFamily:'monospace' }}>{w.weight} kg</span>
+                <button onClick={() => deleteWeight(w.id)}
+                  style={{ background:'none', border:`1px solid ${T.border}`, borderRadius:5, padding:'1px 8px', fontSize:10, cursor:'pointer', color:T.muted, fontFamily:'inherit' }}>usuń</button>
+              </div>
+            ))}
+          </div>
+        )}
+
       </div>
     </div>
   )
