@@ -19,13 +19,15 @@ export default function ResetPasswordPage() {
  useEffect(() => {
   const params = new URLSearchParams(window.location.search)
   const code = params.get('code')
+  console.log('code:', code)
   if (code) {
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+      console.log('exchange result:', { data, error })
       if (error) setErr('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
       else setReady(true)
     })
   } else {
-    setErr('Brak tokenu w URL. Wróć do emaila i kliknij link ponownie.')
+    setErr('Brak tokenu w URL.')
   }
 }, [])
 
