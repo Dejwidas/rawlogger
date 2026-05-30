@@ -45,7 +45,7 @@ export default function DayPage() {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', today).order('display_order', { ascending: true }).order('created_at', { ascending: true })
+      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', date).order('display_order', { ascending: true }).order('created_at', { ascending: true })
       setSets(setsData ?? [])
       const order: string[] = []
       setsData?.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
