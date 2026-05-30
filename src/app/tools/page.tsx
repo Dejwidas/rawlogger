@@ -68,6 +68,7 @@ async function loadFavoriteRecords(favs: string[]) {
   async function searchRecords() {
     if (showFavOnly && favorites.length > 0) {
       const all: any[] = []
+	  const seenIds = new Set<string>() 
       for (const fav of favorites) {
         let q = supabase.from('training_sets').select('*').ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
         if (recFrom) q = q.gte('date', recFrom)

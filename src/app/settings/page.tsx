@@ -218,6 +218,15 @@ export default function SettingsPage() {
         </div>
 
       </div>
+	  
+	  <div style={card}>
+  <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>Dokumenty</div>
+  <div style={{ display:'flex', gap:12 }}>
+    <a href="/terms" target="_blank" style={{ fontSize:13, color:T.accent, textDecoration:'none' }}>Regulamin</a>
+    <a href="/privacy" target="_blank" style={{ fontSize:13, color:T.accent, textDecoration:'none' }}>Polityka prywatności</a>
+  </div>
+</div>
+
     </div>
   )
 }
