@@ -19,6 +19,8 @@ export default function ResetPasswordPage() {
  useEffect(() => {
   // Pobierz token z hash URL
   const hash = window.location.hash
+    console.log('hash:', window.location.hash)
+  console.log('href:', window.location.href)
   if (hash) {
     const params = new URLSearchParams(hash.substring(1))
     const accessToken = params.get('access_token')
