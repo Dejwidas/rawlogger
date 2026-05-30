@@ -16,21 +16,28 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false)
   const [loading, setLoading] = useState(false)
 
- useEffect(() => {
-  const params = new URLSearchParams(window.location.search)
-  const code = params.get('code')
-  console.log('code:', code)
-  if (code) {
-    supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
-      console.log('exchange result:', { data, error })
-      if (error) setErr('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
-      else setReady(true)
-    })
+useEffect(() => {
+  const hash = window.location.hash
+  if (hash) {
+    const params = new URLSearchParams(hash.substring(1))
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+    const type = params.get('type')
+    if (type === 'recovery' && accessToken && refreshToken) {
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      }).then(({ error }) => {
+        if (error) setErr('Link wygasł lub jest nieprawidłowy. Spróbuj ponownie.')
+        else setReady(true)
+      })
+    } else {
+      setErr('Nieprawidłowy link resetujący.')
+    }
   } else {
-    setErr('Brak tokenu w URL.')
+    setErr('Brak tokenu w URL. Wróć do emaila i kliknij link ponownie.')
   }
 }, [])
-
   async function handleReset() {
     if (!pass) { setErr('Wpisz nowe hasło'); return }
     if (pass.length < 6) { setErr('Hasło min. 6 znaków'); return }
