@@ -44,7 +44,7 @@ export default function LoginPage() {
     setErr(''); setLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-       redirectTo: 'https://www.rawlogger.pl/auth/callback'
+       redirectTo: 'https://www.rawlogger.pl/callback'
       })
       if (error) { setErr(error.message); return }
       setResetMsg('Link do zmiany hasła został wysłany na podany adres email.')

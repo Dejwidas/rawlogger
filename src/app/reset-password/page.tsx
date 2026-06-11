@@ -17,21 +17,13 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
 
 useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    console.log('event:', event, 'session:', !!session)
-    if (event === 'PASSWORD_RECOVERY') {
-      setReady(true)
-    }
-  })
-
-  // Wymuś sprawdzenie sesji po załadowaniu
   supabase.auth.getSession().then(({ data: { session } }) => {
-    console.log('current session:', !!session)
     if (session) setReady(true)
+    else setErr('Link wygasł lub jest nieprawidłowy.')
   })
-
-  return () => subscription.unsubscribe()
 }, [])
+
+
 
 
   async function handleReset() {
