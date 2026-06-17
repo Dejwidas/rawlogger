@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
+import type { Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { UserProvider } from '@/lib/UserContext'
+import RegisterSW from '@/components/RegisterSW'
+
 
 export const metadata: Metadata = {
   title: 'rawlogger — prosty dziennik treningowy',
@@ -23,6 +26,10 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  themeColor: '#0e0e0e',
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pl">
@@ -31,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UserProvider>
           {children}
         </UserProvider>
+        <RegisterSW />
         <Analytics />
       </body>
     </html>
