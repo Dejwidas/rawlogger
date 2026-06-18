@@ -9,6 +9,69 @@ const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.
 const inp: React.CSSProperties = { width:'100%', background:T.surface2, border:`1px solid ${T.border2}`, borderRadius:7, padding:'8px 10px', fontSize:13, color:T.text, fontFamily:'monospace', outline:'none', boxSizing:'border-box' }
 const lbl: React.CSSProperties = { fontSize:11, color:T.muted2, marginBottom:4, letterSpacing:'0.04em', textTransform:'uppercase' as const }
 const fmtDate = (s: string) => { const [y,m,d]=s.split('-'); return `${d}.${m}.${y}` }
+const sumReps = (arr: number[] | null | undefined) => (arr ?? []).reduce((s, n) => s + n, 0)
+
+const DEFAULT_RECORD_COUNT = 5
+
+function RecordSection({
+  title, valueUnit, items, showAll, onToggle,
+}: {
+  title: string
+  valueUnit: 'weight' | 'volume'
+  items: any[]
+  showAll: boolean
+  onToggle: () => void
+}) {
+  const visible = showAll ? items : items.slice(0, DEFAULT_RECORD_COUNT)
+  const hidden = items.length - DEFAULT_RECORD_COUNT
+
+  return (
+    <div style={card}>
+      <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:12 }}>{title}</div>
+
+      {items.length === 0 && (
+        <p style={{ fontSize:12, color:T.muted }}>Brak danych.</p>
+      )}
+
+      {items.length > 0 && (
+        <>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:T.muted, marginBottom:6, paddingBottom:6, borderBottom:`1px solid ${T.border}` }}>
+            <span>MIEJSCE · DATA</span>
+            <span>{valueUnit === 'weight' ? 'CIĘŻAR' : 'OBJĘTOŚĆ'}</span>
+          </div>
+          {visible.map((r, i) => {
+            const repsSum = sumReps(r.reps_arr)
+            const value = valueUnit === 'weight' ? r.weight : r.weight * repsSum
+            return (
+              <div key={r.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:`1px solid ${T.border}`, fontSize:12 }}>
+                <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:i===0?T.accent:T.muted, fontFamily:'monospace', minWidth:18 }}>#{i+1}</span>
+                  <div>
+                    <span style={{ color:T.text, fontFamily:'monospace' }}>{fmtDate(r.date)}</span>
+                    <span style={{ display:'block', fontSize:10, color:T.muted, marginTop:2, fontFamily:'monospace' }}>
+                      {valueUnit === 'weight'
+                        ? `×${r.reps_arr?.join('·')} powt.`
+                        : `${r.weight} kg × ${repsSum} powt.`}
+                    </span>
+                  </div>
+                </div>
+                <span style={{ color:i===0?T.accent:T.text, fontWeight:700, fontSize:15, fontFamily:'monospace' }}>{value} kg</span>
+              </div>
+            )
+          })}
+          {hidden > 0 && (
+            <button
+              style={{ background:'transparent', color:T.muted2, border:`1px solid ${T.border2}`, borderRadius:7, padding:'7px 16px', fontSize:12, cursor:'pointer', fontFamily:'inherit', width:'100%', marginTop:10 }}
+              onClick={onToggle}
+            >
+              {showAll ? 'Pokaż mniej' : `Pokaż więcej (+${hidden})`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
 
 export default function RecordsPage() {
   const router = useRouter()
@@ -21,6 +84,12 @@ export default function RecordsPage() {
   const [acOpen, setAcOpen]       = useState(false)
   const [results, setResults]     = useState<any[]|null>(null)
   const [showFavOnly, setShowFavOnly] = useState(false)
+
+  // Dwie kategorie rekordów dla wybranego ćwiczenia
+  const [weightResults, setWeightResults] = useState<any[]|null>(null)
+  const [volumeResults, setVolumeResults] = useState<any[]|null>(null)
+  const [showAllWeight, setShowAllWeight] = useState(false)
+  const [showAllVolume, setShowAllVolume] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -47,9 +116,8 @@ export default function RecordsPage() {
   }
 
   async function search() {
-    let query = supabase.from('training_sets').select('*').order('weight', { ascending:false }).limit(5)
     if (showFavOnly && favorites.length > 0) {
-      // search only within favorites
+      // search only within favorites — top ciężar per ulubione ćwiczenie
       const favResults: any[] = []
       for (const fav of favorites) {
         let q2 = supabase.from('training_sets').select('*').ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
@@ -60,13 +128,42 @@ export default function RecordsPage() {
       }
       favResults.sort((a, b) => b.weight - a.weight)
       setResults(favResults)
+      setWeightResults(null)
+      setVolumeResults(null)
       return
     }
-    if (q.trim()) query = query.ilike('exercise_name', q.trim())
+
+    if (q.trim()) {
+      // konkretne ćwiczenie -> dwie kategorie: najwyższy ciężar i najwyższa objętość
+      let query = supabase.from('training_sets').select('*').ilike('exercise_name', q.trim())
+      if (from) query = query.gte('date', from)
+      if (to)   query = query.lte('date', to)
+      const { data } = await query.limit(500)
+      const rows = data ?? []
+
+      const weightSorted = [...rows].sort((a, b) => b.weight - a.weight)
+      const volumeSorted = [...rows].sort((a, b) => {
+        const va = a.weight * sumReps(a.reps_arr)
+        const vb = b.weight * sumReps(b.reps_arr)
+        return vb - va
+      })
+
+      setWeightResults(weightSorted)
+      setVolumeResults(volumeSorted)
+      setShowAllWeight(false)
+      setShowAllVolume(false)
+      setResults(null)
+      return
+    }
+
+    // brak ćwiczenia -> ogólny przegląd top 5 po ciężarze (jak dotychczas)
+    let query = supabase.from('training_sets').select('*').order('weight', { ascending:false }).limit(5)
     if (from) query = query.gte('date', from)
     if (to)   query = query.lte('date', to)
     const { data } = await query
     setResults(data ?? [])
+    setWeightResults(null)
+    setVolumeResults(null)
   }
 
   const acMatches = q.trim() ? exercises.filter(e => e.toLowerCase().includes(q.toLowerCase())) : []
@@ -84,7 +181,7 @@ export default function RecordsPage() {
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em' }}>Rekordy</div>
             <button style={b(showFavOnly, { padding:'4px 12px', fontSize:11, borderRadius:99 })}
-              onClick={() => { setShowFavOnly(!showFavOnly); setResults(null) }}>
+              onClick={() => { setShowFavOnly(!showFavOnly); setResults(null); setWeightResults(null); setVolumeResults(null) }}>
               ★ ulubione
             </button>
           </div>
@@ -112,10 +209,10 @@ export default function RecordsPage() {
           </div>
           <button style={{ ...b(true), marginBottom:16 }} onClick={search}>Szukaj</button>
 
-          {results !== null && results.length === 0 && (
+          {weightResults === null && results !== null && results.length === 0 && (
             <p style={{ fontSize:12, color:T.muted }}>Brak danych.</p>
           )}
-          {results && results.length > 0 && (
+          {weightResults === null && results && results.length > 0 && (
             <>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:T.muted, marginBottom:6, paddingBottom:6, borderBottom:`1px solid ${T.border}` }}>
                 <span>MIEJSCE · ĆWICZENIE</span><span>CIĘŻAR</span>
@@ -137,6 +234,25 @@ export default function RecordsPage() {
             </>
           )}
         </div>
+
+        {weightResults !== null && (
+          <>
+            <RecordSection
+              title="Najwyższy ciężar (1RM)"
+              valueUnit="weight"
+              items={weightResults}
+              showAll={showAllWeight}
+              onToggle={() => setShowAllWeight(v => !v)}
+            />
+            <RecordSection
+              title="Najwyższa objętość"
+              valueUnit="volume"
+              items={volumeResults ?? []}
+              showAll={showAllVolume}
+              onToggle={() => setShowAllVolume(v => !v)}
+            />
+          </>
+        )}
       </div>
     </div>
   )
