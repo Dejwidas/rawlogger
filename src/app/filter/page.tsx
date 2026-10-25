@@ -57,31 +57,25 @@ export default function FilterPage() {
     const { data: exData } = await supabase.from('exercises').select('name').order('name')
     const exList = exData?.map((e: any) => e.name) ?? []
     setExercises(exList)
-    const exSet = new Set(exList)
 
     // load favorites
     const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
     setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
 
-    // load popular — only exercises that exist in exercises table
-    const { data: setsData } = await supabase.from('training_sets').select('exercise_name, date')
-if (setsData) {
-const sc: Record<string, Set<string>> = {}
-setsData.forEach((r: any) => {
-  const matched = exList.find(e => e.toLowerCase() === r.exercise_name.toLowerCase())
-  if (!matched) return
-  if (!sc[matched]) sc[matched] = new Set()
-  sc[matched].add(r.date)
-})
-  // wszystkie ćwiczenia z exercises, nawet te z 0 sesji
-  const all = exList.map(name => ({
-    name,
-    sessions: sc[name]?.size ?? 0
-  }))
-  // sortuj: najpierw po sesjach malejąco, przy równych alfabetycznie
-  all.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name, 'pl'))
-  setPopular(all)
-}
+    // Liczba sesji liczona po stronie serwera. Wcześniej szło to przez
+    // pobranie całej tabeli training_sets i zliczanie unikalnych dat w JS,
+    // co po przekroczeniu limitu "Max rows" API (domyślnie 1000) po cichu
+    // gubiło część wierszy — ćwiczenia z uciętego ogona pokazywały 0 sesji.
+    const { data: statsData, error: statsErr } = await supabase.rpc('exercise_stats')
+    if (statsErr) console.error('exercise_stats failed', statsErr)
+    const sessionsByName = new Map<string, number>(
+      (statsData ?? []).map((s: any) => [s.name, s.sessions as number])
+    )
+    // wszystkie ćwiczenia z exercises, nawet te z 0 sesji
+    const all = exList.map(name => ({ name, sessions: sessionsByName.get(name) ?? 0 }))
+    // sortuj: najpierw po sesjach malejąco, przy równych alfabetycznie
+    all.sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name, 'pl'))
+    setPopular(all)
   }
 
   async function toggleFavorite(name: string) {

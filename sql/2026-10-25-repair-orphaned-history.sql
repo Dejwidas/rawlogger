@@ -33,9 +33,12 @@
 -- Pokazuje każdą nazwę z historii, która nie ma odpowiednika w katalogu
 -- (porównanie bez wielkości liter — tak jak czyta aplikacja).
 --
--- Dla konta właściciela było to 692 wierszy ze 1422. To NIE znaczy, że
--- wszystkie wymagają naprawy: większość pochodzi ze świadomego usuwania
--- ćwiczeń z katalogu (usunięcie wpisu z katalogu celowo zostawia historię).
+-- Stan na 2026-10-25: 181 wierszy w 22 nazwach w całej bazie, z czego na
+-- koncie właściciela 179 wierszy w 20 nazwach — a 131 z nich to opisany
+-- powyżej przypadek "Bp", już scalony. Reszta to w większości śmieci
+-- z testów oraz pojedyncze serie po ćwiczeniach świadomie usuniętych
+-- z katalogu (usunięcie wpisu z katalogu celowo zostawia historię).
+--
 -- Naprawiaj tylko te pozycje, które rozpoznajesz jako skutek nieudanej
 -- zmiany nazwy — czyli takie, dla których istnieje dziś inna nazwa
 -- oznaczająca to samo ćwiczenie.
