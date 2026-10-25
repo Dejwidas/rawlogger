@@ -20,8 +20,9 @@
 -- danych.
 --
 -- :UID NIE jest parametrem — Supabase SQL Editor go nie rozwinie. Zrób
--- zwykłe zamień-wszystko w edytorze: :UID  ->  'f941dd51-bab6-4fad-b604-c63c5e724424'::uuid
--- (to user_id konta, na którym widać opisany problem; sprawdź, że to Twoje).
+-- zwykłe zamień-wszystko w edytorze na swoje konto, np.
+-- :UID  ->  'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'::uuid
+-- Swój user_id znajdziesz w Dashboard -> Authentication -> Users.
 --
 -- KROK 1 i 2 to tylko SELECT-y. KROK 3 zmienia dane i jest w transakcji.
 
@@ -32,7 +33,7 @@
 -- Pokazuje każdą nazwę z historii, która nie ma odpowiednika w katalogu
 -- (porównanie bez wielkości liter — tak jak czyta aplikacja).
 --
--- Dla konta f941dd51-... było to 692 wierszy ze 1422. To NIE znaczy, że
+-- Dla konta właściciela było to 692 wierszy ze 1422. To NIE znaczy, że
 -- wszystkie wymagają naprawy: większość pochodzi ze świadomego usuwania
 -- ćwiczeń z katalogu (usunięcie wpisu z katalogu celowo zostawia historię).
 -- Naprawiaj tylko te pozycje, które rozpoznajesz jako skutek nieudanej
