@@ -39,20 +39,23 @@ export default function DayPage() {
   const [inlineVal, setInlineVal]   = useState('')
   const [showHelp, setShowHelp]     = useState(false)
   const [groupOrder, setGroupOrder] = useState<string[]>([])
+  const [noteStatus, setNoteStatus] = useState<{ ok: boolean, msg: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', date).order('display_order', { ascending: true }).order('created_at', { ascending: true })
+      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', date)
+        .order('display_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
       setSets(setsData ?? [])
       const order: string[] = []
       setsData?.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
       setGroupOrder(order)
       const { data: exData } = await supabase.from('exercises').select('name').order('name')
       setExercises(exData?.map((e: any) => e.name) ?? [])
-      const { data: noteData } = await supabase.from('training_notes').select('note, title').eq('date', date).single()
+      const { data: noteData } = await supabase.from('training_notes').select('note, title').eq('date', date).maybeSingle()
       setDayNote(noteData?.note ?? '')
       setDayTitle(noteData?.title ?? '')
       const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
@@ -83,20 +86,28 @@ export default function DayPage() {
     grouped[s.exercise_name].push(s)
   })
 
+  // Wszystkie serie jednego ćwiczenia w danym dniu dzielą display_order równy
+  // pozycji ćwiczenia w groupOrder — tak samo numeruje moveGroup.
+  function orderFor(name: string) {
+    const idx = groupOrder.indexOf(name)
+    return idx === -1 ? groupOrder.length : idx
+  }
+
   async function handleAdd() {
     if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
     if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
     setParseErr(''); setSaving(true)
     const exNormalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
+    const displayOrder = orderFor(exNormalized)
     for (const g of parsed.groups) {
       if (g.type === 'weighted') {
         for (const reps of g.repsArr) {
-          const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null }
+          const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
           const { data, error } = await supabase.from('training_sets').insert(row).select().single()
           if (!error && data) setSets(prev => [...prev, data])
         }
       } else {
-        const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null }
+        const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
         const { data, error } = await supabase.from('training_sets').insert(row).select().single()
         if (!error && data) setSets(prev => [...prev, data])
       }
@@ -113,15 +124,16 @@ export default function DayPage() {
   async function handleInlineAdd(name: string) {
     const p = parseSetStr(inlineVal)
     if (!p) return
+    const displayOrder = orderFor(name)
     for (const g of p.groups) {
       if (g.type === 'weighted') {
         for (const reps of g.repsArr) {
-          const row: any = { user_id: userId, exercise_name: name, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: p.rest, set_note: null }
+          const row: any = { user_id: userId, exercise_name: name, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: p.rest, set_note: null, display_order: displayOrder }
           const { data, error } = await supabase.from('training_sets').insert(row).select().single()
           if (!error && data) setSets(prev => [...prev, data])
         }
       } else {
-        const row: any = { user_id: userId, exercise_name: name, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: p.rest, set_note: null }
+        const row: any = { user_id: userId, exercise_name: name, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: p.rest, set_note: null, display_order: displayOrder }
         const { data, error } = await supabase.from('training_sets').insert(row).select().single()
         if (!error && data) setSets(prev => [...prev, data])
       }
@@ -173,10 +185,18 @@ async function moveGroup(exN: string, dir: -1 | 1) {
   }
 
   const saveDayData = useCallback(async (note: string, title: string) => {
-    await supabase.from('training_notes').upsert(
+    if (!userId) { setNoteStatus({ ok:false, msg:'Sesja jeszcze się ładuje — spróbuj za chwilę.' }); return }
+    setNoteStatus({ ok:true, msg:'Zapisywanie...' })
+    const { error } = await supabase.from('training_notes').upsert(
       { user_id: userId, date, note, title, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,date' }
     )
+    if (error) {
+      console.error('training_notes upsert failed', error)
+      setNoteStatus({ ok:false, msg:`Nie zapisano: ${error.message}${error.code ? ` [${error.code}]` : ''}` })
+    } else {
+      setNoteStatus({ ok:true, msg:'Zapisano' })
+    }
   }, [userId, date])
 
   const d = new Date(date + 'T12:00:00')
@@ -365,11 +385,17 @@ async function moveGroup(exN: string, dir: -1 | 1) {
 
         <div style={card}>
           <div style={lbl}>Notatka do treningu</div>
-          <textarea value={dayNote} onChange={e => setDayNote(e.target.value)}
+          <textarea value={dayNote} onChange={e => { setDayNote(e.target.value); setNoteStatus(null) }}
             placeholder="Ogólne uwagi..."
+            onBlur={() => saveDayData(dayNote, dayTitle)}
             style={{ ...inp, minHeight:65, resize:'vertical', lineHeight:1.6, marginTop:4, fontSize:14, color:T.text }} />
-          <button style={{ ...b(false, { padding:'5px 14px', fontSize:12, marginTop:8 }) }}
-            onClick={() => saveDayData(dayNote, dayTitle)}>Zapisz notatkę</button>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:8 }}>
+            <button style={{ ...b(false, { padding:'5px 14px', fontSize:12 }) }}
+              onClick={() => saveDayData(dayNote, dayTitle)}>Zapisz notatkę</button>
+            {noteStatus && (
+              <span style={{ fontSize:11, color: noteStatus.ok ? T.accent : T.danger }}>{noteStatus.msg}</span>
+            )}
+          </div>
         </div>
 
       </div>

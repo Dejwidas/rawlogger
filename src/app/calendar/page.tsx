@@ -79,9 +79,11 @@ function CalendarContent() {
   async function selectDay(ds: string) {
     if (sel === ds) { setSel(null); return }
     setSel(ds)
-    const { data: s } = await supabase.from('training_sets').select('*').eq('date', ds).order('created_at')
+    const { data: s } = await supabase.from('training_sets').select('*').eq('date', ds)
+      .order('display_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
     setSelSets(s ?? [])
-    const { data: n } = await supabase.from('training_notes').select('note').eq('date', ds).single()
+    const { data: n } = await supabase.from('training_notes').select('note').eq('date', ds).maybeSingle()
     setSelNote(n?.note ?? '')
   }
 

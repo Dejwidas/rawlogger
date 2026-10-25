@@ -11,10 +11,12 @@ export interface TrainingSet {
   set_note: string | null
   created_at: string
   wt_seconds: number | null
+  display_order: number | null
 }
 
 export interface TrainingNote {
   id: string
   date: string
   note: string | null
+  title: string | null
 }

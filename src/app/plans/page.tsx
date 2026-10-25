@@ -111,21 +111,32 @@ export default function PlansPage() {
     if (!editId || planExes.length === 0) return
     setLaunching(true)
     const today = todayStr()
-    for (const ex of planExes) {
-      await supabase.from('training_sets').insert({
-        user_id: userId,
-        exercise_name: ex.exercise_name,
-        date: today,
-        weight: null,
-        reps_arr: [],
-        set_type: 'bw',
-        bw_reps: 0,
-        timed_seconds: null,
-        wt_seconds: null,
-        rest_note: null,
-        set_note: null,
-      })
-    }
+
+    // dołóż plan za tym, co już jest w dzienniku na dziś — inaczej
+    // display_order zderzyłby się z istniejącymi ćwiczeniami
+    const { data: last } = await supabase.from('training_sets')
+      .select('display_order').eq('user_id', userId).eq('date', today)
+      .order('display_order', { ascending: false, nullsFirst: false }).limit(1)
+    const base = (last?.[0]?.display_order ?? -1) + 1
+
+    // planExes jest już posortowane po position — indeks daje gęstą kolejność
+    const rows = planExes.map((ex, i) => ({
+      user_id: userId,
+      exercise_name: ex.exercise_name,
+      date: today,
+      weight: null,
+      reps_arr: [],
+      set_type: 'bw',
+      bw_reps: 0,
+      timed_seconds: null,
+      wt_seconds: null,
+      rest_note: null,
+      set_note: null,
+      display_order: base + i,
+    }))
+    const { error } = await supabase.from('training_sets').insert(rows)
+    if (error) console.error('launchPlan insert failed', error)
+
     setLaunching(false)
     router.push('/today')
   }

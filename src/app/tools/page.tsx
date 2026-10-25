@@ -155,8 +155,35 @@ export default function ToolsPage() {
   const maxW = chartWeights.length ? Math.max(...chartWeights.map(w=>w.weight)) + 1 : 100
   const range = maxW - minW || 1
   const CW = 600, CH = 160, pad = 32
-  const cx = (i: number) => pad + (i / Math.max(chartWeights.length-1,1)) * (CW - pad*2)
+
+  // oś X jest rzeczywistą osią czasu: pozycja punktu wynika z daty pomiaru,
+  // nie z jego indeksu — dwa wpisy dzień po dniu stoją blisko siebie,
+  // a trzymiesięczna przerwa jest widoczna jako przerwa
+  const DAY_MS = 86400000
+  const tOf = (d: string) => Date.parse(d + 'T00:00:00Z') / DAY_MS
+  const tMin = chartWeights.length ? tOf(chartWeights[0].date) : 0
+  const tMax = chartWeights.length ? tOf(chartWeights[chartWeights.length-1].date) : 1
+  const tSpan = tMax - tMin || 1
+  const cx = (d: string) => pad + ((tOf(d) - tMin) / tSpan) * (CW - pad*2)
   const cy = (w: number) => CH - pad - ((w - minW) / range) * (CH - pad*2)
+
+  // przy nierównych odstępach etykiety dat nachodziłyby na siebie —
+  // pokazujemy tylko te, które mieszczą się bez kolizji, zawsze z ostatnią
+  const LABEL_GAP = 46
+  const dateLabels = (() => {
+    const shown: number[] = []
+    let lastX = -Infinity
+    chartWeights.forEach((w, i) => {
+      const x = cx(w.date)
+      if (x - lastX >= LABEL_GAP) { shown.push(i); lastX = x }
+    })
+    const lastI = chartWeights.length - 1
+    if (lastI >= 0 && shown[shown.length-1] !== lastI) {
+      if (cx(chartWeights[lastI].date) - cx(chartWeights[shown[shown.length-1]].date) < LABEL_GAP) shown.pop()
+      shown.push(lastI)
+    }
+    return new Set(shown)
+  })()
 
   return (
     <div style={{ background:T.bg, minHeight:'100vh', color:T.text }}>
@@ -302,14 +329,16 @@ export default function ToolsPage() {
                       </g>
                     )
                   })}
-                  <polyline points={chartWeights.map((w,i)=>`${cx(i)},${cy(w.weight)}`).join(' ')}
+                  <polyline points={chartWeights.map(w=>`${cx(w.date)},${cy(w.weight)}`).join(' ')}
                     fill="none" stroke={T.accent} strokeWidth="2"/>
                   {chartWeights.map((w,i) => (
                     <g key={w.id}>
-                      <circle cx={cx(i)} cy={cy(w.weight)} r="3" fill={T.accent}/>
-                      <text x={cx(i)} y={CH-4} textAnchor="middle" fontSize="8" fill="#555">
-                        {w.date.slice(5).replace('-','.')}
-                      </text>
+                      <circle cx={cx(w.date)} cy={cy(w.weight)} r="3" fill={T.accent}/>
+                      {dateLabels.has(i) && (
+                        <text x={cx(w.date)} y={CH-4} textAnchor="middle" fontSize="8" fill="#555">
+                          {w.date.slice(5).replace('-','.')}
+                        </text>
+                      )}
                     </g>
                   ))}
                 </svg>
