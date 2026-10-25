@@ -12,6 +12,14 @@ const fmtDate = (s: string) => { const [y,m,d]=s.split('-'); return `${d}.${m}.$
 
 interface PopularEx { name: string; sessions: number }
 
+type RenameMsg = { ok: boolean; text: string; mergeInto?: string }
+
+// 1 seria / 2-4 serie / 5+ serii
+const plural = (n: number, one: string, few: string, many: string) =>
+  n === 1 ? one
+  : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? few
+  : many
+
 export default function FilterPage() {
   const router = useRouter()
   const [email, setEmail]         = useState('')
@@ -28,6 +36,10 @@ export default function FilterPage() {
   const [renameId, setRenameId]       = useState<string|null>(null)
   const [renameVal, setRenameVal]     = useState('')
   const [confirmDel, setConfirmDel]   = useState<string|null>(null)
+  const [renameMsg, setRenameMsg]     = useState<RenameMsg|null>(null)
+  const [renameBusy, setRenameBusy]   = useState(false)
+  const [mergeAsk, setMergeAsk]       = useState<{ from: string; into: string }|null>(null)
+  const [manageMsg, setManageMsg]     = useState<RenameMsg|null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -98,26 +110,82 @@ setsData.forEach((r: any) => {
     await loadAll()
   }
 
+  function cancelRename() {
+    setRenameId(null); setRenameMsg(null); setMergeAsk(null)
+  }
+
+  // Nazwa ćwiczenia jest w bazie trzymana tekstem w training_sets,
+  // favorite_exercises i plan_exercises — nie ma exercise_id. Przepisanie
+  // wszystkich trzech tabel musi być jedną transakcją, dlatego RPC.
   async function renameExercise(oldName: string) {
-    const newName = renameVal.trim()
-    if (!newName || newName === oldName) { setRenameId(null); return }
-    const normalized = newName.charAt(0).toUpperCase() + newName.slice(1).toLowerCase()
+    const raw = renameVal.trim()
+    if (!raw) { setRenameMsg({ ok:false, text:'Nazwa nie może być pusta.' }); return }
+    const normalized = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+    if (normalized === oldName) { cancelRename(); return }
 
-    await supabase.from('exercises')
-      .update({ name: normalized }).eq('user_id', userId).eq('name', oldName)
+    setRenameBusy(true); setMergeAsk(null)
+    const { data, error } = await supabase.rpc('rename_exercise', { p_old: oldName, p_new: normalized })
+    setRenameBusy(false)
 
-    await supabase.from('training_sets')
-      .update({ exercise_name: normalized })
-      .filter('exercise_name', 'eq', oldName)
+    if (error) {
+      console.error('rename_exercise failed', error)
+      setRenameMsg({ ok:false, text:`Nie zmieniono nazwy: ${error.message}${error.code ? ` [${error.code}]` : ''}` })
+      return
+    }
 
-    await supabase.from('favorite_exercises')
-      .update({ exercise_name: normalized })
-      .filter('exercise_name', 'eq', oldName)
+    if (!data?.ok) {
+      if (data?.reason === 'duplicate') {
+        const n = data.target_sets ?? 0
+        setRenameMsg({
+          ok: false,
+          mergeInto: data.target,
+          text: `Ćwiczenie „${data.target}" już istnieje (${n} ${plural(n,'seria','serie','serii')}).`,
+        })
+      } else if (data?.reason === 'empty') {
+        setRenameMsg({ ok:false, text:'Nazwa nie może być pusta.' })
+      } else if (data?.reason === 'too_long') {
+        setRenameMsg({ ok:false, text:'Nazwa może mieć najwyżej 80 znaków.' })
+      } else if (data?.reason === 'not_found') {
+        setRenameMsg({ ok:false, text:`Nie znaleziono ćwiczenia „${oldName}".` })
+      } else {
+        console.error('rename_exercise: nieoczekiwana odpowiedź', data)
+        setRenameMsg({ ok:false, text:'Nie zmieniono nazwy — nieoczekiwana odpowiedź serwera.' })
+      }
+      return
+    }
 
-    setExercises(prev => prev.map(e => e === oldName ? normalized : e).sort())
-    setPopular(prev => prev.map(e => e.name === oldName ? { ...e, name: normalized } : e))
-    setFavorites(prev => prev.map(f => f === oldName ? normalized : f))
-    setRenameId(null)
+    const plans = data.plans ?? 0
+    await loadAll()
+    cancelRename()
+    setManageMsg({ ok:true, text:
+      `Zmieniono nazwę na „${data.name}" — przepisano ${data.sets} ${plural(data.sets,'serię','serie','serii')}` +
+      (plans ? `, ${plans} ${plural(plans,'wpis','wpisy','wpisów')} w planach.` : '.') })
+  }
+
+  async function mergeExercise(fromName: string, intoName: string) {
+    setRenameBusy(true)
+    const { data, error } = await supabase.rpc('merge_exercise', { p_from: fromName, p_into: intoName })
+    setRenameBusy(false)
+
+    if (error) {
+      console.error('merge_exercise failed', error)
+      setRenameMsg({ ok:false, text:`Nie scalono: ${error.message}${error.code ? ` [${error.code}]` : ''}` })
+      return
+    }
+    if (!data?.ok) {
+      console.error('merge_exercise: odmowa', data)
+      setRenameMsg({ ok:false, text: data?.reason === 'target_not_found'
+        ? `Nie ma już ćwiczenia „${intoName}" — odśwież stronę.`
+        : `Nie scalono (${data?.reason ?? 'nieznany powód'}).` })
+      return
+    }
+
+    const removed = data.plans_removed ?? 0
+    await loadAll()
+    cancelRename()
+    setManageMsg({ ok:true, text:
+      `Scalono „${fromName}" z „${data.into}" — przeniesiono ${data.sets} ${plural(data.sets,'serię','serie','serii')}` +
+      (removed ? `, usunięto ${removed} ${plural(removed,'zdublowany wpis','zdublowane wpisy','zdublowanych wpisów')} w planach.` : '.') })
   }
 
   async function doFilter(name?: string) {
@@ -182,16 +250,51 @@ setsData.forEach((r: any) => {
               </div>
 
               <div style={lbl}>Lista ćwiczeń ({exercises.length})</div>
+              {manageMsg && (
+                <div style={{ fontSize:11, color: manageMsg.ok ? T.accent : T.danger, marginTop:6, lineHeight:1.6 }}>
+                  {manageMsg.text}
+                </div>
+              )}
               <div style={{ marginTop:6 }}>
                 {exercises.map(ex => (
                   <div key={ex} style={{ borderBottom:`1px solid ${T.border}`, padding:'6px 0' }}>
                     {renameId === ex ? (
-                      <div style={{ display:'flex', gap:6 }}>
-                        <input style={{ ...inp, flex:1, fontSize:12 }} value={renameVal}
-                          onChange={e => setRenameVal(e.target.value)} autoFocus
-                          onKeyDown={e => { if(e.key==='Enter') renameExercise(ex); if(e.key==='Escape') setRenameId(null) }} />
-                        <button style={b(true, { padding:'4px 12px', fontSize:11 })} onClick={() => renameExercise(ex)}>OK</button>
-                        <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => setRenameId(null)}>✕</button>
+                      <div>
+                        <div style={{ display:'flex', gap:6 }}>
+                          <input style={{ ...inp, flex:1, fontSize:12 }} value={renameVal}
+                            onChange={e => { setRenameVal(e.target.value); setRenameMsg(null); setMergeAsk(null) }} autoFocus
+                            onKeyDown={e => { if(e.key==='Enter') renameExercise(ex); if(e.key==='Escape') cancelRename() }} />
+                          <button style={b(true, { padding:'4px 12px', fontSize:11 })}
+                            onClick={() => renameExercise(ex)} disabled={renameBusy}>{renameBusy ? '...' : 'OK'}</button>
+                          <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={cancelRename}>✕</button>
+                        </div>
+
+                        {renameMsg && !mergeAsk && (
+                          <div style={{ marginTop:6, fontSize:11, color: renameMsg.ok ? T.accent : T.danger, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                            <span>{renameMsg.text}</span>
+                            {renameMsg.mergeInto && (
+                              <button style={b(false, { padding:'2px 10px', fontSize:11 })}
+                                onClick={() => setMergeAsk({ from: ex, into: renameMsg.mergeInto! })}>
+                                Scal z „{renameMsg.mergeInto}"
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {mergeAsk && (
+                          <div style={{ marginTop:6, fontSize:11, color:T.muted2, lineHeight:1.6 }}>
+                            Historia „{mergeAsk.from}" zostanie przepisana na „{mergeAsk.into}",
+                            a „{mergeAsk.from}" zniknie z listy. Tego nie można cofnąć.
+                            <div style={{ display:'flex', gap:8, marginTop:6 }}>
+                              <button style={b(false, { padding:'3px 10px', fontSize:11, borderColor:T.danger, color:T.danger })}
+                                onClick={() => mergeExercise(mergeAsk.from, mergeAsk.into)} disabled={renameBusy}>
+                                {renameBusy ? '...' : 'Scal'}
+                              </button>
+                              <button style={b(false, { padding:'3px 10px', fontSize:11 })}
+                                onClick={() => setMergeAsk(null)}>Anuluj</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : confirmDel === ex ? (
                       <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12 }}>
@@ -208,7 +311,7 @@ setsData.forEach((r: any) => {
                         </button>
                         <span style={{ flex:1, color:T.text }}>{ex}</span>
                         <button style={b(false, { padding:'2px 10px', fontSize:11 })}
-                          onClick={() => { setRenameId(ex); setRenameVal(ex) }}>zmień nazwę</button>
+                          onClick={() => { setRenameId(ex); setRenameVal(ex); setRenameMsg(null); setMergeAsk(null); setManageMsg(null) }}>zmień nazwę</button>
                         <button style={b(false, { padding:'2px 10px', fontSize:11, borderColor:T.border, color:T.muted })}
                           onClick={() => setConfirmDel(ex)}>usuń</button>
                       </div>
