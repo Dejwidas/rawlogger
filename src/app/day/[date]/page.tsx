@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
 import { parseSetStr, volOf, groupLabel } from '@/lib/parser'
 import type { TrainingSet } from '@/lib/types'
 import Nav from '@/components/Nav'
@@ -53,8 +54,7 @@ export default function DayPage() {
       const order: string[] = []
       setsData?.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
       setGroupOrder(order)
-      const { data: exData } = await supabase.from('exercises').select('name').order('name')
-      setExercises(exData?.map((e: any) => e.name) ?? [])
+      setExercises(await loadActiveExerciseNames())
       const { data: noteData } = await supabase.from('training_notes').select('note, title').eq('date', date).maybeSingle()
       setDayNote(noteData?.note ?? '')
       setDayTitle(noteData?.title ?? '')
@@ -97,27 +97,30 @@ export default function DayPage() {
     if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
     if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
     setParseErr(''); setSaving(true)
-    const exNormalized = exName.trim().charAt(0).toUpperCase() + exName.trim().slice(1).toLowerCase()
-    const displayOrder = orderFor(exNormalized)
+    let exCanonical: string
+    try {
+      exCanonical = await ensureExercise(normalizeExerciseName(exName))
+    } catch (err: any) {
+      console.error('ensure_exercise failed', err)
+      setParseErr(`Nie zapisano: ${err.message}`); setSaving(false)
+      return
+    }
+    const displayOrder = orderFor(exCanonical)
     for (const g of parsed.groups) {
       if (g.type === 'weighted') {
         for (const reps of g.repsArr) {
-          const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
+          const row: any = { user_id: userId, exercise_name: exCanonical, date, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
           const { data, error } = await supabase.from('training_sets').insert(row).select().single()
           if (!error && data) setSets(prev => [...prev, data])
         }
       } else {
-        const row: any = { user_id: userId, exercise_name: exNormalized, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
+        const row: any = { user_id: userId, exercise_name: exCanonical, date, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
         const { data, error } = await supabase.from('training_sets').insert(row).select().single()
         if (!error && data) setSets(prev => [...prev, data])
       }
     }
-    const existing = exercises.find(e => e.toLowerCase() === exNormalized.toLowerCase())
-    if (!existing) {
-      await supabase.from('exercises').insert({ user_id: userId, name: exNormalized })
-      setExercises(prev => [...prev, exNormalized].sort())
-    }
-    setGroupOrder(prev => prev.includes(exNormalized) ? prev : [...prev, exNormalized])
+    setExercises(prev => prev.includes(exCanonical) ? prev : [...prev, exCanonical].sort())
+    setGroupOrder(prev => prev.includes(exCanonical) ? prev : [...prev, exCanonical])
     setSetStr(''); setExName(''); setSaving(false)
   }
 

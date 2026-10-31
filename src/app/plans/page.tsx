@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
@@ -38,8 +39,7 @@ export default function PlansPage() {
       setUserId(session.user.id)
       const { data: plansData } = await supabase.from('training_plans').select('*').order('created_at')
       setPlans(plansData ?? [])
-      const { data: exData } = await supabase.from('exercises').select('name').order('name')
-      setAllExercises(exData?.map((e: any) => e.name) ?? [])
+      setAllExercises(await loadActiveExerciseNames())
     })
   }, [])
 
@@ -82,10 +82,18 @@ export default function PlansPage() {
 
   async function addExToPlan(name: string) {
     if (!editId || !name.trim()) return
+    let canonical: string
+    try {
+      canonical = await ensureExercise(normalizeExerciseName(name))
+    } catch (err) {
+      console.error('ensure_exercise failed', err)
+      return
+    }
     const maxPos = planExes.length > 0 ? Math.max(...planExes.map(e => e.position)) : -1
     const { data, error } = await supabase.from('plan_exercises')
-      .insert({ plan_id: editId, exercise_name: name.trim(), position: maxPos + 1 }).select().single()
+      .insert({ plan_id: editId, exercise_name: canonical, position: maxPos + 1 }).select().single()
     if (!error && data) setPlanExes(prev => [...prev, data])
+    setAllExercises(prev => prev.includes(canonical) ? prev : [...prev, canonical].sort())
     setAddExName(''); setAddExAcOpen(false)
   }
 

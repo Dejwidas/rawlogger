@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { loadActiveExerciseNames } from '@/lib/exercises'
 import { volOf } from '@/lib/parser'
 import Nav from '@/components/Nav'
 
@@ -42,8 +43,7 @@ export default function ToolsPage() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
-      const { data: exData } = await supabase.from('exercises').select('name').order('name')
-      setExercises(exData?.map((e: any) => e.name) ?? [])
+      setExercises(await loadActiveExerciseNames())
       const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name').order('exercise_name')
       const favs = favData?.map((f: any) => f.exercise_name) ?? []
       setFavorites(favs)

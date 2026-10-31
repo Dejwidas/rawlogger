@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { loadActiveExerciseNames } from '@/lib/exercises'
 import { volOf } from '@/lib/parser'
 import Nav from '@/components/Nav'
 
@@ -24,8 +25,7 @@ export default function VolumePage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
-      const { data } = await supabase.from('exercises').select('name').order('name')
-      setExercises(data?.map(e=>e.name) ?? [])
+      setExercises(await loadActiveExerciseNames())
     })
   }, [])
 

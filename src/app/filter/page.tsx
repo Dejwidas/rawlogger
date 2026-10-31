@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
@@ -25,6 +26,8 @@ export default function FilterPage() {
   const [email, setEmail]         = useState('')
   const [userId, setUserId]       = useState('')
   const [exercises, setExercises] = useState<string[]>([])
+  const [archived, setArchived]   = useState<string[]>([])
+  const [showArchived, setShowArchived] = useState(false)
   const [favorites, setFavorites] = useState<string[]>([])
   const [popular, setPopular]     = useState<PopularEx[]>([])
   const [q, setQ]                 = useState('')
@@ -54,9 +57,11 @@ export default function FilterPage() {
     const id = uid ?? userId
 
     // load exercises
-    const { data: exData } = await supabase.from('exercises').select('name').order('name')
-    const exList = exData?.map((e: any) => e.name) ?? []
+    const exList = await loadActiveExerciseNames()
     setExercises(exList)
+    const { data: archData } = await supabase.from('exercises').select('name')
+      .not('archived_at', 'is', null).order('name')
+    setArchived(archData?.map((e: any) => e.name) ?? [])
 
     // load favorites
     const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
@@ -89,17 +94,26 @@ export default function FilterPage() {
   }
 
   async function addExercise() {
-    const name = newExName.trim()
-    if (!name) return
-    const normalized = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()
-    if (exercises.includes(normalized)) return
-    await supabase.from('exercises').insert({ user_id: userId, name: normalized })
-    setExercises(prev => [...prev, normalized].sort())
+    if (!newExName.trim()) return
+    try {
+      await ensureExercise(normalizeExerciseName(newExName))
+    } catch (err: any) {
+      console.error('ensure_exercise failed', err)
+      setManageMsg({ ok:false, text:`Nie dodano: ${err.message}` })
+      return
+    }
     setNewExName('')
+    await loadAll()
   }
 
-  async function deleteExercise(name: string) {
-    await supabase.from('exercises').delete().eq('user_id', userId).eq('name', name)
+  // Usunięcie wpisu z katalogu osierocałoby historię, dlatego archiwizujemy.
+  async function setArchivedAt(name: string, archivedAt: string|null) {
+    const { error } = await supabase.from('exercises').update({ archived_at: archivedAt })
+      .eq('user_id', userId).eq('name', name)
+    if (error) {
+      console.error('archive exercise failed', error)
+      setManageMsg({ ok:false, text:`Nie zapisano: ${error.message}${error.code ? ` [${error.code}]` : ''}` })
+    }
     setConfirmDel(null)
     await loadAll()
   }
@@ -292,9 +306,9 @@ export default function FilterPage() {
                       </div>
                     ) : confirmDel === ex ? (
                       <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12 }}>
-                        <span style={{ color:T.danger, flex:1 }}>Usunąć „{ex}"?</span>
+                        <span style={{ color:T.danger, flex:1 }}>Zarchiwizować „{ex}"? Historia zostanie.</span>
                         <button style={b(false, { padding:'3px 10px', fontSize:11, borderColor:T.danger, color:T.danger })}
-                          onClick={() => deleteExercise(ex)}>Usuń</button>
+                          onClick={() => setArchivedAt(ex, new Date().toISOString())}>Archiwizuj</button>
                         <button style={b(false, { padding:'3px 10px', fontSize:11 })} onClick={() => setConfirmDel(null)}>Anuluj</button>
                       </div>
                     ) : (
@@ -307,13 +321,29 @@ export default function FilterPage() {
                         <button style={b(false, { padding:'2px 10px', fontSize:11 })}
                           onClick={() => { setRenameId(ex); setRenameVal(ex); setRenameMsg(null); setMergeAsk(null); setManageMsg(null) }}>zmień nazwę</button>
                         <button style={b(false, { padding:'2px 10px', fontSize:11, borderColor:T.border, color:T.muted })}
-                          onClick={() => setConfirmDel(ex)}>usuń</button>
+                          onClick={() => setConfirmDel(ex)}>archiwizuj</button>
                       </div>
                     )}
                   </div>
                 ))}
                 {exercises.length === 0 && <p style={{ fontSize:12, color:T.muted }}>Brak ćwiczeń.</p>}
               </div>
+
+              {archived.length > 0 && (
+                <div style={{ marginTop:16 }}>
+                  <button style={b(showArchived, { padding:'4px 10px', fontSize:11 })}
+                    onClick={() => setShowArchived(!showArchived)}>
+                    Zarchiwizowane ({archived.length})
+                  </button>
+                  {showArchived && archived.map(ex => (
+                    <div key={ex} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, borderBottom:`1px solid ${T.border}`, padding:'6px 0' }}>
+                      <span style={{ flex:1, color:T.muted2 }}>{ex}</span>
+                      <button style={b(false, { padding:'2px 10px', fontSize:11 })}
+                        onClick={() => setArchivedAt(ex, null)}>przywróć</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           ) : (

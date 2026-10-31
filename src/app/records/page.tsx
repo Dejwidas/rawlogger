@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { loadActiveExerciseNames } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135' }
@@ -95,8 +96,7 @@ export default function RecordsPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
-      const { data: exData } = await supabase.from('exercises').select('name').order('name')
-      setExercises(exData?.map((e: any) => e.name) ?? [])
+      setExercises(await loadActiveExerciseNames())
       const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name').order('exercise_name')
       const favs = favData?.map((f: any) => f.exercise_name) ?? []
       setFavorites(favs)
