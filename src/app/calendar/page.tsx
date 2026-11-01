@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { WITH_NAME, flattenExercise } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
@@ -79,10 +80,10 @@ function CalendarContent() {
   async function selectDay(ds: string) {
     if (sel === ds) { setSel(null); return }
     setSel(ds)
-    const { data: s } = await supabase.from('training_sets').select('*').eq('date', ds)
+    const { data: s } = await supabase.from('training_sets').select(WITH_NAME).eq('date', ds)
       .order('display_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
-    setSelSets(s ?? [])
+    setSelSets((s ?? []).map(flattenExercise))
     const { data: n } = await supabase.from('training_notes').select('note').eq('date', ds).maybeSingle()
     setSelNote(n?.note ?? '')
   }

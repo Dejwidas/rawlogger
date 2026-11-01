@@ -1,5 +1,7 @@
 export interface TrainingSet {
   id: string
+  exercise_id: string
+  // Do wyświetlania, z osadzonego exercises(name) przez flattenExercise.
   exercise_name: string
   date: string
   weight: number | null

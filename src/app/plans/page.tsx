@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
+import { WITH_NAME, ensureExercise, flattenExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
@@ -12,7 +12,7 @@ const lbl: React.CSSProperties = { fontSize:11, color:T.muted2, marginBottom:4, 
 const b = (primary: boolean, extra: React.CSSProperties = {}): React.CSSProperties => ({ background:primary?T.accent:'transparent', color:primary?'#111':T.muted2, border:`1px solid ${primary?T.accent:T.border2}`, borderRadius:7, padding:'7px 16px', fontSize:12, cursor:'pointer', fontWeight:primary?600:400, fontFamily:'inherit', ...extra })
 
 interface Plan { id: string; title: string; content: string; updated_at: string }
-interface PlanEx { id: string; plan_id: string; exercise_name: string; position: number }
+interface PlanEx { id: string; plan_id: string; exercise_id: string; exercise_name: string; position: number }
 
 const todayStr = () => new Date().toISOString().slice(0,10)
 
@@ -46,8 +46,8 @@ export default function PlansPage() {
   // load exercises for active plan
   useEffect(() => {
     if (!editId) { setPlanExes([]); return }
-    supabase.from('plan_exercises').select('*').eq('plan_id', editId).order('position')
-      .then(({ data }) => setPlanExes(data ?? []))
+    supabase.from('plan_exercises').select(WITH_NAME).eq('plan_id', editId).order('position')
+      .then(({ data }) => setPlanExes((data ?? []).map(flattenExercise)))
     const plan = plans.find(p => p.id === editId)
     setEditContent(plan?.content ?? '')
   }, [editId])
@@ -82,17 +82,17 @@ export default function PlansPage() {
 
   async function addExToPlan(name: string) {
     if (!editId || !name.trim()) return
-    let canonical: string
+    let exId: string, canonical: string
     try {
-      canonical = await ensureExercise(normalizeExerciseName(name))
+      ({ id: exId, name: canonical } = await ensureExercise(normalizeExerciseName(name)))
     } catch (err) {
       console.error('ensure_exercise failed', err)
       return
     }
     const maxPos = planExes.length > 0 ? Math.max(...planExes.map(e => e.position)) : -1
     const { data, error } = await supabase.from('plan_exercises')
-      .insert({ plan_id: editId, exercise_name: canonical, position: maxPos + 1 }).select().single()
-    if (!error && data) setPlanExes(prev => [...prev, data])
+      .insert({ plan_id: editId, user_id: userId, exercise_id: exId, position: maxPos + 1 }).select(WITH_NAME).single()
+    if (!error && data) setPlanExes(prev => [...prev, flattenExercise(data)])
     setAllExercises(prev => prev.includes(canonical) ? prev : [...prev, canonical].sort())
     setAddExName(''); setAddExAcOpen(false)
   }
@@ -130,7 +130,7 @@ export default function PlansPage() {
     // planExes jest już posortowane po position — indeks daje gęstą kolejność
     const rows = planExes.map((ex, i) => ({
       user_id: userId,
-      exercise_name: ex.exercise_name,
+      exercise_id: ex.exercise_id,
       date: today,
       weight: null,
       reps_arr: [],

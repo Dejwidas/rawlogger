@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
+import { WITH_NAME, ensureExercise, flattenExercise, loadActiveExerciseNames, loadFavoriteNames, normalizeExerciseName, setFavorite } from '@/lib/exercises'
 import { parseSetStr, volOf, groupLabel } from '@/lib/parser'
 import type { TrainingSet } from '@/lib/types'
 import Nav from '@/components/Nav'
@@ -44,19 +44,19 @@ export default function TodayPage() {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      const { data: setsData } = await supabase.from('training_sets').select('*').eq('date', today)
+      const { data: setsData } = await supabase.from('training_sets').select(WITH_NAME).eq('date', today)
         .order('display_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true })
-      setSets(setsData ?? [])
+      const rows = (setsData ?? []).map(flattenExercise)
+      setSets(rows)
       const order: string[] = []
-      setsData?.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
+      rows.forEach((s: any) => { if (!order.includes(s.exercise_name)) order.push(s.exercise_name) })
       setGroupOrder(order)
       setExercises(await loadActiveExerciseNames())
       const { data: noteData } = await supabase.from('training_notes').select('note, title').eq('date', today).maybeSingle()
       setDayNote(noteData?.note ?? '')
       setDayTitle(noteData?.title ?? '')
-      const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
-      setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
+      setFavorites(await loadFavoriteNames())
     })
   }, [])
 
@@ -94,9 +94,9 @@ export default function TodayPage() {
     if (!exName.trim()) { setParseErr('Wpisz nazwę ćwiczenia'); return }
     if (!parsed) { setParseErr('Nieprawidłowy format. Przykład: 100x5x5 lub 80x8'); return }
     setParseErr(''); setSaving(true)
-    let exCanonical: string
+    let exId: string, exCanonical: string
     try {
-      exCanonical = await ensureExercise(normalizeExerciseName(exName))
+      ({ id: exId, name: exCanonical } = await ensureExercise(normalizeExerciseName(exName)))
     } catch (err: any) {
       console.error('ensure_exercise failed', err)
       setParseErr(`Nie zapisano: ${err.message}`); setSaving(false)
@@ -106,14 +106,14 @@ export default function TodayPage() {
     for (const g of parsed.groups) {
       if (g.type === 'weighted') {
         for (const reps of g.repsArr) {
-          const row: any = { user_id: userId, exercise_name: exCanonical, date: today, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
-          const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-          if (!error && data) setSets(prev => [...prev, data])
+          const row: any = { user_id: userId, exercise_id: exId, date: today, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
+          const { data, error } = await supabase.from('training_sets').insert(row).select(WITH_NAME).single()
+          if (!error && data) setSets(prev => [...prev, flattenExercise(data)])
         }
       } else {
-        const row: any = { user_id: userId, exercise_name: exCanonical, date: today, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
-        const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-        if (!error && data) setSets(prev => [...prev, data])
+        const row: any = { user_id: userId, exercise_id: exId, date: today, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: parsed.rest, set_note: null, display_order: displayOrder }
+        const { data, error } = await supabase.from('training_sets').insert(row).select(WITH_NAME).single()
+        if (!error && data) setSets(prev => [...prev, flattenExercise(data)])
       }
     }
     setExercises(prev => prev.includes(exCanonical) ? prev : [...prev, exCanonical].sort())
@@ -124,18 +124,20 @@ export default function TodayPage() {
   async function handleInlineAdd(name: string) {
     const p = parseSetStr(inlineVal)
     if (!p) return
+    const exId = sets.find(s => s.exercise_name === name)?.exercise_id
+    if (!exId) return
     const displayOrder = orderFor(name)
     for (const g of p.groups) {
       if (g.type === 'weighted') {
         for (const reps of g.repsArr) {
-          const row: any = { user_id: userId, exercise_name: name, date: today, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: p.rest, set_note: null, display_order: displayOrder }
-          const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-          if (!error && data) setSets(prev => [...prev, data])
+          const row: any = { user_id: userId, exercise_id: exId, date: today, weight: g.weight, reps_arr: [reps], set_type: 'weighted', bw_reps: null, timed_seconds: null, wt_seconds: null, rest_note: p.rest, set_note: null, display_order: displayOrder }
+          const { data, error } = await supabase.from('training_sets').insert(row).select(WITH_NAME).single()
+          if (!error && data) setSets(prev => [...prev, flattenExercise(data)])
         }
       } else {
-        const row: any = { user_id: userId, exercise_name: name, date: today, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: p.rest, set_note: null, display_order: displayOrder }
-        const { data, error } = await supabase.from('training_sets').insert(row).select().single()
-        if (!error && data) setSets(prev => [...prev, data])
+        const row: any = { user_id: userId, exercise_id: exId, date: today, weight: g.type==='wt' ? g.weight : null, reps_arr: g.type==='bw' ? [g.reps] : [], set_type: g.type, bw_reps: g.type==='bw' ? g.reps : null, timed_seconds: g.type==='timed' ? g.seconds : null, wt_seconds: g.type==='wt' ? g.seconds : null, rest_note: p.rest, set_note: null, display_order: displayOrder }
+        const { data, error } = await supabase.from('training_sets').insert(row).select(WITH_NAME).single()
+        if (!error && data) setSets(prev => [...prev, flattenExercise(data)])
       }
     }
     setGroupOrder(prev => prev.includes(name) ? prev : [...prev, name])
@@ -166,20 +168,22 @@ async function moveGroup(exN: string, dir: -1 | 1) {
   updated.splice(newIdx, 0, exN)
   setGroupOrder(updated)
   for (let i = 0; i < updated.length; i++) {
+    const exId = sets.find(s => s.exercise_name === updated[i])?.exercise_id
+    if (!exId) continue
     await supabase.from('training_sets')
       .update({ display_order: i })
       .eq('user_id', userId)
-      .eq('exercise_name', updated[i])
+      .eq('exercise_id', exId)
       .eq('date', today)
   }
 }
 
   async function toggleFavorite(name: string) {
     if (favorites.includes(name)) {
-      await supabase.from('favorite_exercises').delete().eq('user_id', userId).eq('exercise_name', name)
+      await setFavorite(userId, name, false)
       setFavorites(prev => prev.filter(f => f !== name))
     } else {
-      await supabase.from('favorite_exercises').insert({ user_id: userId, exercise_name: name })
+      await setFavorite(userId, name, true)
       setFavorites(prev => [...prev, name].sort())
     }
   }

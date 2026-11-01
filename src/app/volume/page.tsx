@@ -31,7 +31,7 @@ export default function VolumePage() {
 
   async function calc() {
     if (!q.trim()) return
-    let query = supabase.from('training_sets').select('weight, reps_arr, date').ilike('exercise_name', q.trim())
+    let query = supabase.from('training_sets').select('weight, reps_arr, date, exercises!inner(name)').ilike('exercises.name', q.trim())
     if (from) query = query.gte('date', from)
     if (to)   query = query.lte('date', to)
     const { data } = await query

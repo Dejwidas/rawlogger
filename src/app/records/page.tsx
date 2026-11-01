@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { loadActiveExerciseNames } from '@/lib/exercises'
+import { WITH_NAME_INNER, flattenExercise, loadActiveExerciseNames, loadFavoriteNames } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135' }
@@ -97,8 +97,7 @@ export default function RecordsPage() {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setExercises(await loadActiveExerciseNames())
-      const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name').order('exercise_name')
-      const favs = favData?.map((f: any) => f.exercise_name) ?? []
+      const favs = await loadFavoriteNames()
       setFavorites(favs)
       if (favs.length > 0) await loadFavoriteRecords(favs)
     })
@@ -107,9 +106,9 @@ export default function RecordsPage() {
   async function loadFavoriteRecords(favs: string[]) {
     const allResults: any[] = []
     for (const fav of favs) {
-      const { data } = await supabase.from('training_sets').select('*')
-        .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
-      if (data?.[0]) allResults.push(data[0])
+      const { data } = await supabase.from('training_sets').select(WITH_NAME_INNER)
+        .ilike('exercises.name', fav).order('weight', { ascending:false }).limit(1)
+      if (data?.[0]) allResults.push(flattenExercise(data[0]))
     }
     allResults.sort((a, b) => b.weight - a.weight)
     setResults(allResults)
@@ -120,11 +119,11 @@ export default function RecordsPage() {
       // search only within favorites — top ciężar per ulubione ćwiczenie
       const favResults: any[] = []
       for (const fav of favorites) {
-        let q2 = supabase.from('training_sets').select('*').ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
+        let q2 = supabase.from('training_sets').select(WITH_NAME_INNER).ilike('exercises.name', fav).order('weight', { ascending:false }).limit(1)
         if (from) q2 = q2.gte('date', from)
         if (to)   q2 = q2.lte('date', to)
         const { data } = await q2
-        if (data?.[0]) favResults.push(data[0])
+        if (data?.[0]) favResults.push(flattenExercise(data[0]))
       }
       favResults.sort((a, b) => b.weight - a.weight)
       setResults(favResults)
@@ -135,11 +134,11 @@ export default function RecordsPage() {
 
     if (q.trim()) {
       // konkretne ćwiczenie -> dwie kategorie: najwyższy ciężar i najwyższa objętość
-      let query = supabase.from('training_sets').select('*').ilike('exercise_name', q.trim())
+      let query = supabase.from('training_sets').select(WITH_NAME_INNER).ilike('exercises.name', q.trim())
       if (from) query = query.gte('date', from)
       if (to)   query = query.lte('date', to)
       const { data } = await query.limit(500)
-      const rows = data ?? []
+      const rows = (data ?? []).map(flattenExercise)
 
       const weightSorted = [...rows].sort((a, b) => b.weight - a.weight)
       const volumeSorted = [...rows].sort((a, b) => {
@@ -157,11 +156,11 @@ export default function RecordsPage() {
     }
 
     // brak ćwiczenia -> ogólny przegląd top 5 po ciężarze (jak dotychczas)
-    let query = supabase.from('training_sets').select('*').order('weight', { ascending:false }).limit(5)
+    let query = supabase.from('training_sets').select(WITH_NAME_INNER).order('weight', { ascending:false }).limit(5)
     if (from) query = query.gte('date', from)
     if (to)   query = query.lte('date', to)
     const { data } = await query
-    setResults(data ?? [])
+    setResults((data ?? []).map(flattenExercise))
     setWeightResults(null)
     setVolumeResults(null)
   }

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ensureExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
+import { ensureExercise, loadActiveExerciseNames, loadFavoriteNames, normalizeExerciseName, setFavorite } from '@/lib/exercises'
 import Nav from '@/components/Nav'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
@@ -64,8 +64,7 @@ export default function FilterPage() {
     setArchived(archData?.map((e: any) => e.name) ?? [])
 
     // load favorites
-    const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name')
-    setFavorites(favData?.map((f: any) => f.exercise_name) ?? [])
+    setFavorites(await loadFavoriteNames())
 
     // Liczba sesji liczona po stronie serwera. Wcześniej szło to przez
     // pobranie całej tabeli training_sets i zliczanie unikalnych dat w JS,
@@ -85,10 +84,10 @@ export default function FilterPage() {
 
   async function toggleFavorite(name: string) {
     if (favorites.includes(name)) {
-      await supabase.from('favorite_exercises').delete().eq('user_id', userId).eq('exercise_name', name)
+      await setFavorite(userId, name, false)
       setFavorites(prev => prev.filter(f => f !== name))
     } else {
-      await supabase.from('favorite_exercises').insert({ user_id: userId, exercise_name: name })
+      await setFavorite(userId, name, true)
       setFavorites(prev => [...prev, name].sort())
     }
   }
@@ -201,8 +200,8 @@ export default function FilterPage() {
     if (!query) return
     setQ(query); setAcOpen(false)
     const { data } = await supabase.from('training_sets')
-      .select('date, weight, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds')
-      .ilike('exercise_name', query).order('date', { ascending:false })
+      .select('date, weight, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds, exercises!inner(name)')
+      .ilike('exercises.name', query).order('date', { ascending:false })
     const byDate: Record<string,any[]> = {}
     data?.forEach((s: any) => { if(!byDate[s.date])byDate[s.date]=[]; byDate[s.date].push(s) })
     setResults(Object.entries(byDate).map(([date,sets])=>({date,sets})))

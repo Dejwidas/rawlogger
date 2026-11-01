@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { loadActiveExerciseNames } from '@/lib/exercises'
+import { WITH_NAME_INNER, flattenExercise, loadActiveExerciseNames, loadFavoriteNames } from '@/lib/exercises'
 import { volOf } from '@/lib/parser'
 import Nav from '@/components/Nav'
 
@@ -44,8 +44,7 @@ export default function ToolsPage() {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setExercises(await loadActiveExerciseNames())
-      const { data: favData } = await supabase.from('favorite_exercises').select('exercise_name').order('exercise_name')
-      const favs = favData?.map((f: any) => f.exercise_name) ?? []
+      const favs = await loadFavoriteNames()
       setFavorites(favs)
       const { data: bwData } = await supabase.from('body_weight').select('*').order('date', { ascending: true })
       setBodyWeights(bwData ?? [])
@@ -58,11 +57,11 @@ export default function ToolsPage() {
     const all: any[] = []
     const seenIds = new Set<string>()
     for (const fav of favs) {
-      const { data } = await supabase.from('training_sets').select('*')
-        .ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
+      const { data } = await supabase.from('training_sets').select(WITH_NAME_INNER)
+        .ilike('exercises.name', fav).order('weight', { ascending:false }).limit(1)
       if (data && data.length > 0 && !seenIds.has(data[0].id)) {
         seenIds.add(data[0].id)
-        all.push(data[0])
+        all.push(flattenExercise(data[0]))
       }
     }
     all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
@@ -74,32 +73,32 @@ export default function ToolsPage() {
       const all: any[] = []
       const seenIds = new Set<string>()
       for (const fav of favorites) {
-        let q = supabase.from('training_sets').select('*').ilike('exercise_name', fav).order('weight', { ascending:false }).limit(1)
+        let q = supabase.from('training_sets').select(WITH_NAME_INNER).ilike('exercises.name', fav).order('weight', { ascending:false }).limit(1)
         if (recFrom) q = q.gte('date', recFrom)
         if (recTo)   q = q.lte('date', recTo)
         const { data } = await q
         if (data && data.length > 0 && !seenIds.has(data[0].id)) {
           seenIds.add(data[0].id)
-          all.push(data[0])
+          all.push(flattenExercise(data[0]))
         }
       }
       all.sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0))
       setRecResults(all)
       return
     }
-    let query = supabase.from('training_sets').select('*').order('weight', { ascending:false }).limit(5)
-    if (recQ.trim()) query = query.ilike('exercise_name', recQ.trim())
+    let query = supabase.from('training_sets').select(WITH_NAME_INNER).order('weight', { ascending:false }).limit(5)
+    if (recQ.trim()) query = query.ilike('exercises.name', recQ.trim())
     if (recFrom) query = query.gte('date', recFrom)
     if (recTo)   query = query.lte('date', recTo)
     const { data } = await query
-    setRecResults(data ?? [])
+    setRecResults((data ?? []).map(flattenExercise))
   }
 
   async function calcVolume() {
     if (!volQ.trim()) return
     let query = supabase.from('training_sets')
-      .select('weight, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds, date')
-      .ilike('exercise_name', volQ.trim())
+      .select('weight, reps_arr, set_type, bw_reps, timed_seconds, wt_seconds, date, exercises!inner(name)')
+      .ilike('exercises.name', volQ.trim())
     if (volFrom) query = query.gte('date', volFrom)
     if (volTo)   query = query.lte('date', volTo)
     const { data } = await query
