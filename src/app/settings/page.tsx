@@ -45,12 +45,13 @@ export default function SettingsPage() {
     if (delEmail !== email) { setDelErr('Podany email nie zgadza się'); return }
     await supabase.from('training_sets').delete().eq('user_id', userId)
     await supabase.from('training_notes').delete().eq('user_id', userId)
-    await supabase.from('exercises').delete().eq('user_id', userId)
     await supabase.from('favorite_exercises').delete().eq('user_id', userId)
     const { data: plans } = await supabase.from('training_plans').select('id').eq('user_id', userId)
     const planIds = plans?.map((p: any) => p.id) ?? []
     if (planIds.length > 0) await supabase.from('plan_exercises').delete().in('plan_id', planIds)
     await supabase.from('training_plans').delete().eq('user_id', userId)
+    // Katalog na końcu: klucze obce blokują usunięcie ćwiczenia, które ma jeszcze wpisy.
+    await supabase.from('exercises').delete().eq('user_id', userId)
     await supabase.from('body_weight').delete().eq('user_id', userId)
     await supabase.from('user_profiles').delete().eq('id', userId)
     await supabase.auth.signOut()
