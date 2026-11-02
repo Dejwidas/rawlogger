@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Nav from '@/components/Nav'
+import OpenInAppHint from '@/components/OpenInAppHint'
 import SharedPlanDetails from '@/components/SharedPlanDetails'
 import { authorLabel, getSharedPlan, loginHrefFor, type SharedPlan } from '@/lib/sharing'
 
@@ -16,28 +17,6 @@ export default function SharedPlanPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [plan, setPlan] = useState<SharedPlan | null | 'missing'>(null)
   const [err, setErr]   = useState('')
-  const [inBrowserOnPhone, setInBrowserOnPhone] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [androidIntent, setAndroidIntent] = useState<string | null>(null)
-
-  // Przeglądarki wbudowane w komunikatory (Messenger itp.) i iPhone nie
-  // przekazują linków do aplikacji z ekranu głównego, a ma ona osobną sesję.
-  // Na Androidzie link intent:// bez wskazanej aplikacji oddaje adres systemowi,
-  // a ten otwiera aplikację z ekranu głównego, jeśli ma ona włączone otwieranie
-  // linków. Wskazanie Chrome to pomija: Chrome nie przekazuje kart do aplikacji.
-  // Wszędzie zostaje skopiowanie i wklejenie.
-  useEffect(() => {
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
-    setInBrowserOnPhone(!standalone && window.matchMedia('(pointer: coarse)').matches)
-    if (!standalone && /Android/i.test(navigator.userAgent)) {
-      setAndroidIntent(`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;end`)
-    }
-  }, [])
-
-  async function copyHere() {
-    try { await navigator.clipboard.writeText(window.location.href); setCopied(true) }
-    catch (e) { console.error('copy failed', e) }
-  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -60,23 +39,7 @@ export default function SharedPlanPage() {
         </div>
       )}
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
-        {inBrowserOnPhone && plan && plan !== 'missing' && (
-          <div style={{ ...card, borderColor:'#383838' }}>
-            <div style={{ fontSize:13, marginBottom:6 }}>Masz rawlogger na ekranie głównym?</div>
-            {androidIntent && (
-              <a href={androidIntent} style={{ display:'inline-block', background:T.accent, color:'#111', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, textDecoration:'none', marginBottom:10 }}>
-                Otwórz w aplikacji
-              </a>
-            )}
-            <div style={{ fontSize:12, color:T.muted2, marginBottom:10 }}>
-              {androidIntent ? 'Jeśli to nie zadziała: ' : ''}skopiuj link, otwórz aplikację i wklej go w Plany → Katalog → „Masz link do planu?”.
-            </div>
-            <button onClick={copyHere} style={{ background: androidIntent ? 'transparent' : T.accent, color: androidIntent ? T.muted2 : '#111',
-              border: androidIntent ? '1px solid #383838' : 'none', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-              {copied ? 'Skopiowano ✓' : 'Kopiuj link'}
-            </button>
-          </div>
-        )}
+        {plan && plan !== 'missing' && <OpenInAppHint pasteWhere="Plany → Katalog → „Masz link do planu?”" />}
         {err && <p style={{ fontSize:12, color:'#ff4444' }}>{err}</p>}
         {plan === null && !err && <p style={{ fontSize:12, color:T.muted }}>Wczytywanie...</p>}
         {plan === 'missing' && (
