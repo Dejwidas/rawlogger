@@ -18,12 +18,18 @@ export default function SharedPlanPage() {
   const [err, setErr]   = useState('')
   const [inBrowserOnPhone, setInBrowserOnPhone] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [androidIntent, setAndroidIntent] = useState<string | null>(null)
 
-  // iPhone nie przekazuje linków do aplikacji z ekranu głównego, a ma ona
-  // osobną sesję. Podpowiadamy więc wklejenie linku w aplikacji.
+  // Przeglądarki wbudowane w komunikatory (Messenger itp.) i iPhone nie
+  // przekazują linków do aplikacji z ekranu głównego, a ma ona osobną sesję.
+  // Na Androidzie link intent:// otwiera adres w Chrome, a Chrome sam przekazuje
+  // go do zainstalowanej aplikacji. Wszędzie zostaje skopiowanie i wklejenie.
   useEffect(() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
     setInBrowserOnPhone(!standalone && window.matchMedia('(pointer: coarse)').matches)
+    if (!standalone && /Android/i.test(navigator.userAgent)) {
+      setAndroidIntent(`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`)
+    }
   }, [])
 
   async function copyHere() {
@@ -55,10 +61,16 @@ export default function SharedPlanPage() {
         {inBrowserOnPhone && plan && plan !== 'missing' && (
           <div style={{ ...card, borderColor:'#383838' }}>
             <div style={{ fontSize:13, marginBottom:6 }}>Masz rawlogger na ekranie głównym?</div>
+            {androidIntent && (
+              <a href={androidIntent} style={{ display:'inline-block', background:T.accent, color:'#111', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, textDecoration:'none', marginBottom:10 }}>
+                Otwórz w aplikacji
+              </a>
+            )}
             <div style={{ fontSize:12, color:T.muted2, marginBottom:10 }}>
-              Skopiuj link, otwórz aplikację i wklej go w Plany → Katalog → „Masz link do planu?”.
+              {androidIntent ? 'Jeśli to nie zadziała: ' : ''}skopiuj link, otwórz aplikację i wklej go w Plany → Katalog → „Masz link do planu?”.
             </div>
-            <button onClick={copyHere} style={{ background:T.accent, color:'#111', border:'none', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            <button onClick={copyHere} style={{ background: androidIntent ? 'transparent' : T.accent, color: androidIntent ? T.muted2 : '#111',
+              border: androidIntent ? '1px solid #383838' : 'none', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
               {copied ? 'Skopiowano ✓' : 'Kopiuj link'}
             </button>
           </div>
