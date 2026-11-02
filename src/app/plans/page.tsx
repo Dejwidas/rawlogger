@@ -18,6 +18,29 @@ interface PlanEx { id: string; plan_id: string; exercise_id: string; exercise_na
 
 const todayStr = () => new Date().toISOString().slice(0,10)
 
+const EMPTY_SET = { set_type:'bw', weight:null, reps_arr:[], bw_reps:0, timed_seconds:null, wt_seconds:null }
+
+// Podpowiedź do uruchomienia planu: ostatnia seria ćwiczenia z wcześniejszej
+// sesji, w tym samym typie, ale z zerem powtórzeń lub sekund. Puste serie
+// z poprzednich uruchomień planu nic nie mówią, więc są pomijane.
+async function lastSetHint(exerciseId: string, today: string) {
+  const { data, error } = await supabase.from('training_sets')
+    .select('set_type, weight, bw_reps, timed_seconds')
+    .eq('exercise_id', exerciseId).lt('date', today)
+    .order('date', { ascending:false }).order('created_at', { ascending:false })
+    .limit(10)
+  if (error) { console.error('last set hint failed', error); return null }
+  const last = data?.find(s =>
+    s.set_type === 'weighted' || s.set_type === 'wt' ? s.weight != null
+    : s.set_type === 'timed' ? s.timed_seconds?.some((t: number) => t > 0)
+    : (s.bw_reps ?? 0) > 0)
+  if (!last) return null
+  if (last.set_type === 'weighted') return { ...EMPTY_SET, set_type:'weighted', weight:last.weight, reps_arr:[0], bw_reps:null }
+  if (last.set_type === 'wt')       return { ...EMPTY_SET, set_type:'wt', weight:last.weight, wt_seconds:0, bw_reps:null }
+  if (last.set_type === 'timed')    return { ...EMPTY_SET, set_type:'timed', timed_seconds:[0], bw_reps:null }
+  return null
+}
+
 export default function PlansPage() {
   const router = useRouter()
   const [email, setEmail]       = useState('')
@@ -221,17 +244,16 @@ export default function PlansPage() {
       .order('display_order', { ascending: false, nullsFirst: false }).limit(1)
     const base = (last?.[0]?.display_order ?? -1) + 1
 
+    const hints = new Map(await Promise.all(
+      [...new Set(planExes.map(ex => ex.exercise_id))].map(async id => [id, await lastSetHint(id, today)] as const)
+    ))
+
     // planExes jest już posortowane po position — indeks daje gęstą kolejność
     const rows = planExes.map((ex, i) => ({
       user_id: userId,
       exercise_id: ex.exercise_id,
       date: today,
-      weight: null,
-      reps_arr: [],
-      set_type: 'bw',
-      bw_reps: 0,
-      timed_seconds: null,
-      wt_seconds: null,
+      ...(hints.get(ex.exercise_id) ?? EMPTY_SET),
       rest_note: null,
       set_note: null,
       display_order: base + i,
