@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { WITH_NAME, ensureExercise, flattenExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
@@ -112,11 +112,30 @@ export default function PlansPage() {
     }
   }
 
-  async function saveNote(ex: PlanEx, raw: string) {
-    const note = raw.trim().slice(0, NOTE_MAX) || null
+  // Edytowana jest jedna notatka naraz; reszta wyświetla się jako tekst.
+  const [noteEdit, setNoteEdit]   = useState<string|null>(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteErr, setNoteErr]     = useState<{ id: string, text: string } | null>(null)
+
+  // Escape anuluje; ref, bo blur przy zamykaniu pola przychodzi przed nowym renderem.
+  const noteCancelled = useRef(false)
+
+  function startNote(ex: PlanEx) {
+    noteCancelled.current = false
+    setNoteEdit(ex.id); setNoteDraft(ex.note ?? ''); setNoteErr(null)
+  }
+
+  async function saveNote(ex: PlanEx) {
+    setNoteEdit(null)
+    if (noteCancelled.current) return
+    const note = noteDraft.trim().slice(0, NOTE_MAX) || null
     if (note === (ex.note ?? null)) return
     const { error } = await supabase.from('plan_exercises').update({ note }).eq('id', ex.id)
-    if (error) { console.error('save note failed', error); return }
+    if (error) {
+      console.error('save note failed', error)
+      setNoteErr({ id: ex.id, text: `Nie zapisano notatki: ${error.message}` })
+      return
+    }
     setPlanExes(prev => prev.map(e => e.id === ex.id ? { ...e, note } : e))
   }
 
@@ -318,12 +337,24 @@ export default function PlansPage() {
                   <span style={{ fontSize:11, color:T.muted, fontFamily:'monospace', minWidth:20 }}>#{idx+1}</span>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ color:T.text }}>{ex.exercise_name}</div>
-                    <input key={`${ex.id}:${ex.note ?? ''}`} defaultValue={ex.note ?? ''} maxLength={NOTE_MAX}
-                      placeholder="notatka, np. 3×8–10, RIR 2"
-                      onBlur={e => saveNote(ex, e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                      style={{ width:'100%', background:'transparent', border:'none', borderBottom:`1px dashed ${T.border}`, padding:'2px 0', marginTop:2,
-                        fontSize:12, color:T.muted2, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+                    {noteEdit === ex.id ? (
+                      <input autoFocus value={noteDraft} maxLength={NOTE_MAX}
+                        onChange={e => setNoteDraft(e.target.value)}
+                        onBlur={() => saveNote(ex)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') e.currentTarget.blur()
+                          if (e.key === 'Escape') { noteCancelled.current = true; setNoteEdit(null) }
+                        }}
+                        placeholder="np. 3×8–10, RIR 2"
+                        style={{ ...inp, marginTop:4, padding:'5px 8px', fontSize:12 }} />
+                    ) : ex.note ? (
+                      <div onClick={() => startNote(ex)} title="Edytuj notatkę"
+                        style={{ fontSize:12, color:T.muted2, marginTop:2, cursor:'pointer', overflowWrap:'anywhere' }}>{ex.note} <span style={{ color:T.muted }}>✎</span></div>
+                    ) : (
+                      <button onClick={() => startNote(ex)}
+                        style={{ background:'none', border:'none', padding:0, marginTop:2, fontSize:11, color:T.muted, cursor:'pointer', fontFamily:'inherit' }}>+ notatka</button>
+                    )}
+                    {noteErr?.id === ex.id && <div style={{ fontSize:11, color:T.danger, marginTop:2 }}>{noteErr.text}</div>}
                   </div>
                   <button onClick={() => moveEx(ex.id, -1)} disabled={idx===0}
                     style={{ background:'none', border:'none', cursor:idx===0?'default':'pointer', color:idx===0?T.muted:T.muted2, fontSize:14, padding:'0 4px' }}>↑</button>
