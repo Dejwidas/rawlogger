@@ -22,13 +22,15 @@ export default function SharedPlanPage() {
 
   // Przeglądarki wbudowane w komunikatory (Messenger itp.) i iPhone nie
   // przekazują linków do aplikacji z ekranu głównego, a ma ona osobną sesję.
-  // Na Androidzie link intent:// otwiera adres w Chrome, a Chrome sam przekazuje
-  // go do zainstalowanej aplikacji. Wszędzie zostaje skopiowanie i wklejenie.
+  // Na Androidzie link intent:// bez wskazanej aplikacji oddaje adres systemowi,
+  // a ten otwiera aplikację z ekranu głównego, jeśli ma ona włączone otwieranie
+  // linków. Wskazanie Chrome to pomija: Chrome nie przekazuje kart do aplikacji.
+  // Wszędzie zostaje skopiowanie i wklejenie.
   useEffect(() => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
     setInBrowserOnPhone(!standalone && window.matchMedia('(pointer: coarse)').matches)
     if (!standalone && /Android/i.test(navigator.userAgent)) {
-      setAndroidIntent(`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;package=com.android.chrome;end`)
+      setAndroidIntent(`intent://${window.location.host}${window.location.pathname}#Intent;scheme=https;end`)
     }
   }, [])
 
