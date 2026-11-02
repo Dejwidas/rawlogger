@@ -36,6 +36,12 @@ export const shareUrl = (token: string) => `${window.location.origin}/p/${token}
 export const newShareToken = () => crypto.randomUUID().replace(/-/g, '')
 export const loginHrefFor = (path: string) => `/login?next=${encodeURIComponent(path)}`
 
+// Token z wklejonego linku (.../p/<token>) albo z samego tokenu.
+export function tokenFromLink(raw: string): string | null {
+  const m = raw.trim().match(/(?:\/p\/)?([0-9a-zA-Z_-]{24,64})\/?(?:[?#].*)?$/)
+  return m ? m[1] : null
+}
+
 export async function getSharedPlan(token: string): Promise<SharedPlan | null> {
   const { data, error } = await supabase.rpc('get_shared_plan', { p_token: token })
   if (error) throw error

@@ -16,6 +16,20 @@ export default function SharedPlanPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [plan, setPlan] = useState<SharedPlan | null | 'missing'>(null)
   const [err, setErr]   = useState('')
+  const [inBrowserOnPhone, setInBrowserOnPhone] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // iPhone nie przekazuje linków do aplikacji z ekranu głównego, a ma ona
+  // osobną sesję. Podpowiadamy więc wklejenie linku w aplikacji.
+  useEffect(() => {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+    setInBrowserOnPhone(!standalone && window.matchMedia('(pointer: coarse)').matches)
+  }, [])
+
+  async function copyHere() {
+    try { await navigator.clipboard.writeText(window.location.href); setCopied(true) }
+    catch (e) { console.error('copy failed', e) }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -38,6 +52,17 @@ export default function SharedPlanPage() {
         </div>
       )}
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
+        {inBrowserOnPhone && plan && plan !== 'missing' && (
+          <div style={{ ...card, borderColor:'#383838' }}>
+            <div style={{ fontSize:13, marginBottom:6 }}>Masz rawlogger na ekranie głównym?</div>
+            <div style={{ fontSize:12, color:T.muted2, marginBottom:10 }}>
+              Skopiuj link, otwórz aplikację i wklej go w Plany → Katalog → „Masz link do planu?”.
+            </div>
+            <button onClick={copyHere} style={{ background:T.accent, color:'#111', border:'none', borderRadius:7, padding:'7px 16px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              {copied ? 'Skopiowano ✓' : 'Kopiuj link'}
+            </button>
+          </div>
+        )}
         {err && <p style={{ fontSize:12, color:'#ff4444' }}>{err}</p>}
         {plan === null && !err && <p style={{ fontSize:12, color:T.muted }}>Wczytywanie...</p>}
         {plan === 'missing' && (

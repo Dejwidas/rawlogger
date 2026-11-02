@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import SharedPlanDetails from '@/components/SharedPlanDetails'
-import { authorLabel, getSharedPlan, loadCatalog, SCORE_HINT, type CatalogEntry, type SharedPlan } from '@/lib/sharing'
+import { authorLabel, getSharedPlan, loadCatalog, SCORE_HINT, tokenFromLink, type CatalogEntry, type SharedPlan } from '@/lib/sharing'
 
 const T = { surface:'#181818', surface2:'#222', border:'#2a2a2a', border2:'#383838', text:'#e8e8e8', muted:'#555', muted2:'#888', accent:'#c8f135', danger:'#ff4444' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -12,6 +13,9 @@ const plural = (n: number, one: string, few: string, many: string) =>
   n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many
 
 export default function PlanCatalog({ onImported }: { onImported: (planId: string) => void }) {
+  const router = useRouter()
+  const [link, setLink]       = useState('')
+  const [linkErr, setLinkErr] = useState('')
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
   const [query, setQuery]     = useState('')
   const [open, setOpen]       = useState<string | null>(null)
@@ -51,8 +55,26 @@ export default function PlanCatalog({ onImported }: { onImported: (planId: strin
       ? { ...e, votes: plan.votes, score: plan.score, my_vote: plan.my_vote } : e) ?? null)
   }
 
+  // Na iPhonie link z wiadomości otwiera się w przeglądarce, nie w aplikacji
+  // z ekranu głównego. Wklejenie go tutaj otwiera plan w aplikacji.
+  function openLink() {
+    const token = tokenFromLink(link)
+    if (!token) { setLinkErr('To nie wygląda na link do planu.'); return }
+    router.push(`/p/${token}`)
+  }
+
   return (
     <>
+      <div style={card}>
+        <div style={{ fontSize:11, color:T.muted2, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:6 }}>Masz link do planu?</div>
+        <div style={{ display:'flex', gap:8 }}>
+          <input style={{ ...inp, flex:1 }} value={link} onChange={e => { setLink(e.target.value); setLinkErr('') }}
+            placeholder="Wklej link..." onKeyDown={e => { if (e.key === 'Enter') openLink() }} />
+          <button style={b(false, { padding:'7px 14px' })} onClick={openLink} disabled={!link.trim()}>Otwórz</button>
+        </div>
+        {linkErr && <p style={{ fontSize:12, color:T.danger, margin:'6px 0 0' }}>{linkErr}</p>}
+      </div>
+
       <div style={card}>
         <div style={{ display:'flex', gap:8 }}>
           <input style={{ ...inp, flex:1 }} value={query} onChange={e => setQuery(e.target.value)}
