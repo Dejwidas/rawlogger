@@ -46,6 +46,9 @@ export default function SettingsPage() {
     await supabase.from('training_sets').delete().eq('user_id', userId)
     await supabase.from('training_notes').delete().eq('user_id', userId)
     await supabase.from('favorite_exercises').delete().eq('user_id', userId)
+    // Własne plusy i importy cudzych planów; te przy własnych planach znikną kaskadowo.
+    await supabase.from('plan_votes').delete().eq('user_id', userId)
+    await supabase.from('plan_imports').delete().eq('user_id', userId)
     const { data: plans } = await supabase.from('training_plans').select('id').eq('user_id', userId)
     const planIds = plans?.map((p: any) => p.id) ?? []
     if (planIds.length > 0) await supabase.from('plan_exercises').delete().in('plan_id', planIds)

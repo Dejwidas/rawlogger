@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { WITH_NAME, ensureExercise, flattenExercise, loadActiveExerciseNames, normalizeExerciseName } from '@/lib/exercises'
+import { NOTE_MAX, getSharedPlan, newShareToken, shareUrl, type SharedPlan } from '@/lib/sharing'
 import Nav from '@/components/Nav'
+import PlanCatalog from '@/components/PlanCatalog'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -11,8 +13,8 @@ const inp: React.CSSProperties = { width:'100%', background:T.surface2, border:`
 const lbl: React.CSSProperties = { fontSize:11, color:T.muted2, marginBottom:4, letterSpacing:'0.04em', textTransform:'uppercase' as const }
 const b = (primary: boolean, extra: React.CSSProperties = {}): React.CSSProperties => ({ background:primary?T.accent:'transparent', color:primary?'#111':T.muted2, border:`1px solid ${primary?T.accent:T.border2}`, borderRadius:7, padding:'7px 16px', fontSize:12, cursor:'pointer', fontWeight:primary?600:400, fontFamily:'inherit', ...extra })
 
-interface Plan { id: string; title: string; content: string; updated_at: string }
-interface PlanEx { id: string; plan_id: string; exercise_id: string; exercise_name: string; position: number }
+interface Plan { id: string; title: string; content: string; updated_at: string; share_token: string; link_shared: boolean; is_public: boolean; published_at: string | null }
+interface PlanEx { id: string; plan_id: string; exercise_id: string; exercise_name: string; position: number; note: string | null }
 
 const todayStr = () => new Date().toISOString().slice(0,10)
 
@@ -31,15 +33,25 @@ export default function PlansPage() {
   const [addExName, setAddExName] = useState('')
   const [addExAcOpen, setAddExAcOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
+  const [tab, setTab]           = useState<'mine'|'catalog'>('mine')
+  const [shareStats, setShareStats] = useState<SharedPlan | null>(null)
+  const [shareMsg, setShareMsg] = useState<{ ok: boolean, text: string } | null>(null)
+
+  async function loadPlans() {
+    const { data: plansData } = await supabase.from('training_plans').select('*').order('created_at')
+    setPlans(plansData ?? [])
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
       setEmail(session.user.email ?? '')
       setUserId(session.user.id)
-      const { data: plansData } = await supabase.from('training_plans').select('*').order('created_at')
-      setPlans(plansData ?? [])
+      await loadPlans()
       setAllExercises(await loadActiveExerciseNames())
+      // ?open=<id> po imporcie ze strony linku
+      const open = new URLSearchParams(window.location.search).get('open')
+      if (open) { setEditId(open); router.replace('/plans') }
     })
   }, [])
 
@@ -50,7 +62,70 @@ export default function PlansPage() {
       .then(({ data }) => setPlanExes((data ?? []).map(flattenExercise)))
     const plan = plans.find(p => p.id === editId)
     setEditContent(plan?.content ?? '')
+    setShareMsg(null)
   }, [editId])
+
+  // Plusy i importy własnego planu, gdy jest udostępniony.
+  const activeShare = plans.find(p => p.id === editId)
+  useEffect(() => {
+    setShareStats(null)
+    if (!activeShare || !(activeShare.link_shared || activeShare.is_public)) return
+    getSharedPlan(activeShare.share_token).then(setShareStats)
+      .catch(e => console.error('get_shared_plan failed', e))
+  }, [activeShare?.share_token, activeShare?.link_shared, activeShare?.is_public])
+
+  async function updateSharing(id: string, patch: Partial<Plan>, okText: string) {
+    const { error } = await supabase.from('training_plans').update(patch).eq('id', id)
+    if (error) {
+      console.error('update sharing failed', error)
+      setShareMsg({ ok:false, text:`Nie zapisano: ${error.message}` })
+      return
+    }
+    setPlans(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
+    setShareMsg({ ok:true, text: okText })
+  }
+
+  // Wyłączenie linku zmienia token, więc stary adres przestaje działać na zawsze.
+  const enableLink  = (p: Plan) => updateSharing(p.id, { link_shared: true }, 'Link jest aktywny. Skopiuj go i wyślij.')
+  const disableLink = (p: Plan) => updateSharing(p.id, { link_shared: false, share_token: newShareToken() }, 'Link wyłączony. Stary adres już nie działa.')
+  const publish     = (p: Plan) => updateSharing(p.id, { is_public: true, published_at: new Date().toISOString() }, 'Plan jest w katalogu.')
+  const unpublish   = (p: Plan) => updateSharing(p.id, { is_public: false }, 'Plan wycofany z katalogu.')
+
+  const [canShare, setCanShare] = useState(false)
+  useEffect(() => { setCanShare(typeof navigator.share === 'function') }, [])
+
+  async function copyLink(p: Plan) {
+    try {
+      await navigator.clipboard.writeText(shareUrl(p.share_token))
+      setShareMsg({ ok:true, text:'Skopiowano link.' })
+    } catch (e) {
+      console.error('copy failed', e)
+      setShareMsg({ ok:false, text:'Nie udało się skopiować. Zaznacz link i skopiuj ręcznie.' })
+    }
+  }
+
+  async function sendLink(p: Plan) {
+    try {
+      await navigator.share({ title: p.title, url: shareUrl(p.share_token) })
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error('share failed', e)
+    }
+  }
+
+  async function saveNote(ex: PlanEx, raw: string) {
+    const note = raw.trim().slice(0, NOTE_MAX) || null
+    if (note === (ex.note ?? null)) return
+    const { error } = await supabase.from('plan_exercises').update({ note }).eq('id', ex.id)
+    if (error) { console.error('save note failed', error); return }
+    setPlanExes(prev => prev.map(e => e.id === ex.id ? { ...e, note } : e))
+  }
+
+  async function openImported(planId: string) {
+    await loadPlans()
+    setAllExercises(await loadActiveExerciseNames())
+    setTab('mine')
+    setEditId(planId)
+  }
 
   async function addPlan() {
     const title = newTitle.trim()
@@ -159,6 +234,20 @@ export default function PlansPage() {
       <Nav />
       <div style={{ maxWidth:720, margin:'0 auto', padding:'0 0.5rem 2rem' }}>
 
+        {/* Moje | Katalog */}
+        <div style={{ display:'flex', marginBottom:10, border:`1px solid ${T.border2}`, borderRadius:8, overflow:'hidden' }}>
+          {([['mine', 'Moje'], ['catalog', 'Katalog']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setTab(key)}
+              style={{ flex:1, background: tab===key ? T.accent : 'transparent', color: tab===key ? '#111' : T.muted2,
+                border:'none', padding:'8px 0', fontSize:13, fontWeight: tab===key ? 600 : 400, cursor:'pointer', fontFamily:'inherit' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'catalog' && <PlanCatalog onImported={openImported} />}
+
+        {tab === 'mine' && <>
         {/* plan selector */}
         <div style={card}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -227,7 +316,15 @@ export default function PlansPage() {
               {planExes.map((ex, idx) => (
                 <div key={ex.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0', borderBottom:`1px solid ${T.border}`, fontSize:13 }}>
                   <span style={{ fontSize:11, color:T.muted, fontFamily:'monospace', minWidth:20 }}>#{idx+1}</span>
-                  <span style={{ flex:1, color:T.text }}>{ex.exercise_name}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ color:T.text }}>{ex.exercise_name}</div>
+                    <input key={`${ex.id}:${ex.note ?? ''}`} defaultValue={ex.note ?? ''} maxLength={NOTE_MAX}
+                      placeholder="notatka, np. 3×8–10, RIR 2"
+                      onBlur={e => saveNote(ex, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                      style={{ width:'100%', background:'transparent', border:'none', borderBottom:`1px dashed ${T.border}`, padding:'2px 0', marginTop:2,
+                        fontSize:12, color:T.muted2, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+                  </div>
                   <button onClick={() => moveEx(ex.id, -1)} disabled={idx===0}
                     style={{ background:'none', border:'none', cursor:idx===0?'default':'pointer', color:idx===0?T.muted:T.muted2, fontSize:14, padding:'0 4px' }}>↑</button>
                   <button onClick={() => moveEx(ex.id, 1)} disabled={idx===planExes.length-1}
@@ -260,6 +357,43 @@ export default function PlansPage() {
               )}
             </div>
 
+            {/* sharing */}
+            <div style={lbl}>Udostępnianie</div>
+            <div style={{ marginTop:6, marginBottom:16, fontSize:12 }}>
+              <p style={{ color:T.muted, margin:'0 0 10px' }}>
+                Inni zobaczą ćwiczenia z notatkami, zawsze w aktualnej wersji. Notatka do planu zostaje prywatna.
+              </p>
+
+              {activePlan.link_shared ? (
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ display:'flex', gap:8, marginBottom:6 }}>
+                    <input readOnly value={shareUrl(activePlan.share_token)} onFocus={e => e.target.select()}
+                      style={{ ...inp, flex:1, fontSize:12, fontFamily:'monospace' }} />
+                    <button style={b(true, { padding:'6px 12px' })} onClick={() => copyLink(activePlan)}>Kopiuj</button>
+                    {canShare && <button style={b(false, { padding:'6px 12px' })} onClick={() => sendLink(activePlan)}>Wyślij…</button>}
+                  </div>
+                  <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => disableLink(activePlan)}>wyłącz link</button>
+                </div>
+              ) : (
+                <button style={b(false, { padding:'6px 12px', marginBottom:10, marginRight:8 })} onClick={() => enableLink(activePlan)}>🔗 udostępnij linkiem</button>
+              )}
+
+              {activePlan.is_public ? (
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                  <span style={{ color:T.accent }}>W katalogu</span>
+                  <button style={b(false, { padding:'4px 10px', fontSize:11 })} onClick={() => unpublish(activePlan)}>wycofaj</button>
+                </div>
+              ) : (
+                <button style={b(false, { padding:'6px 12px' })} onClick={() => publish(activePlan)} disabled={planExes.length === 0}
+                  title={planExes.length === 0 ? 'Dodaj najpierw ćwiczenia' : undefined}>📣 opublikuj w katalogu</button>
+              )}
+
+              {shareStats && (
+                <div style={{ color:T.muted2, marginTop:8 }}>▲ {shareStats.votes} · importy {shareStats.imports} · wynik {shareStats.score}</div>
+              )}
+              {shareMsg && <div style={{ color: shareMsg.ok ? T.muted2 : T.danger, marginTop:8 }}>{shareMsg.text}</div>}
+            </div>
+
             {/* notes */}
             <div style={lbl}>Notatka do planu</div>
             <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
@@ -270,6 +404,7 @@ export default function PlansPage() {
             </button>
           </div>
         )}
+        </>}
       </div>
     </div>
   )

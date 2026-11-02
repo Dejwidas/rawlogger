@@ -7,6 +7,13 @@ const T = { bg:'#0e0e0e',surface2:'#222',border2:'#383838',text:'#e8e8e8',muted:
 const inp: React.CSSProperties = { width:'100%', background:T.surface2, border:`1px solid ${T.border2}`, borderRadius:7, padding:'8px 10px', fontSize:13, color:T.text, fontFamily:'monospace', outline:'none', boxSizing:'border-box', marginBottom:10 }
 const b = (primary: boolean): React.CSSProperties => ({ background:primary?T.accent:'transparent', color:primary?'#111':T.muted2, border:`1px solid ${primary?T.accent:T.border2}`, borderRadius:7, padding:'8px 0', fontSize:12, cursor:'pointer', fontWeight:primary?600:400, flex:1 })
 
+// Powrót po zalogowaniu, np. do linku z planem. Tylko ścieżki w obrębie
+// aplikacji: "//host" albo "/\host" przeglądarka potraktowałaby jako inny serwis.
+function nextPath() {
+  const next = new URLSearchParams(window.location.search).get('next')
+  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/today'
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [mode, setMode]     = useState<'login'|'reg'|'reset'>('login')
@@ -35,7 +42,7 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
         if (error) { setErr('Błędny email lub hasło'); return }
       }
-      router.replace('/today')
+      router.replace(nextPath())
     } finally { setLoading(false) }
   }
 
