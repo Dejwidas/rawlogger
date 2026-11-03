@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -24,9 +24,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [terms, setTerms]   = useState(false)
   const [resetMsg, setResetMsg] = useState('')
+  const [info, setInfo]     = useState('')
+
+  // ?mode=reg z linku zaproszenia, ?info / ?error z powrotu z maila.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('mode') === 'reg') setMode('reg')
+    if (q.get('info') === 'confirmed') setInfo('Adres potwierdzony. Zaloguj się, żeby dokończyć.')
+    if (q.get('error') === 'invalid_link') setErr('Ten link wygasł albo został już użyty.')
+  }, [])
 
   function switchMode(m: 'login'|'reg'|'reset') {
-    setMode(m); setErr(''); setResetMsg('')
+    setMode(m); setErr(''); setResetMsg(''); setInfo('')
   }
 
   async function submit() {
@@ -36,8 +45,18 @@ export default function LoginPage() {
         if (!terms) { setErr('Zaakceptuj regulamin i politykę prywatności'); return }
         if (pass !== pass2) { setErr('Hasła się różnią'); return }
         if (pass.length < 6) { setErr('Hasło min. 6 znaków'); return }
-        const { error } = await supabase.auth.signUp({ email, password: pass })
+        // Link w mailu potwierdzającym wraca tam, skąd przyszła rejestracja
+        // (np. do zaproszenia od znajomego).
+        const { data, error } = await supabase.auth.signUp({
+          email, password: pass,
+          options: { emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(nextPath())}` },
+        })
         if (error) { setErr(error.message); return }
+        if (!data.session) {
+          switchMode('login')
+          setInfo(`Wysłaliśmy link potwierdzający na ${email}. Kliknij go, żeby aktywować konto.`)
+          return
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
         if (error) { setErr('Błędny email lub hasło'); return }
@@ -97,6 +116,7 @@ export default function LoginPage() {
               </label>
             </div>
           </>}
+          {info && <p style={{ fontSize:12, color:T.accent, marginBottom:10, lineHeight:1.6 }}>{info}</p>}
           {err && <p style={{ fontSize:12, color:T.danger, marginBottom:10 }}>{err}</p>}
           <div style={{ display:'flex', gap:8, marginTop:4 }}>
             <button style={b(true)} onClick={submit} disabled={loading}>

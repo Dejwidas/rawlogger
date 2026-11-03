@@ -35,7 +35,28 @@ export async function sendFriendRequest(email: string): Promise<string> {
   }
   if (data.status === 'accepted') return 'Ta osoba już Cię zaprosiła, więc jesteście znajomymi.'
   if (data.status === 'already_friends') return 'Już jesteście znajomymi.'
-  return 'Zaproszenie wysłane. Gdy ta osoba założy konto lub się zaloguje, zobaczy je u siebie.'
+  return 'Zaproszenie wysłane. ' + await sendInviteEmail(email)
+}
+
+// Mail z linkiem zaproszenia, także do osób bez konta. Zaproszenie w aplikacji
+// istnieje niezależnie od tego, czy mail wyszedł.
+async function sendInviteEmail(email: string): Promise<string> {
+  let reason = 'error'
+  try {
+    const res = await fetch('/api/friends/invite-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    const body = await res.json().catch(() => null)
+    if (body?.ok) return 'Wysłaliśmy też maila z linkiem, więc ta osoba może dołączyć, nawet jeśli nie ma jeszcze konta.'
+    reason = body?.reason ?? 'error'
+  } catch (e) {
+    console.error('invite-email failed', e)
+  }
+  if (reason === 'already_sent') return 'Mail z linkiem poszedł na ten adres już wcześniej.'
+  if (reason === 'limit') return 'Mail nie poszedł: limit to 10 maili na dobę. Możesz wysłać osobisty link poniżej.'
+  return 'Mail z linkiem nie poszedł. Gdy ta osoba założy konto lub się zaloguje, zobaczy zaproszenie u siebie. Możesz też wysłać jej osobisty link poniżej.'
 }
 
 export async function respondFriendRequest(id: string, accept: boolean) {

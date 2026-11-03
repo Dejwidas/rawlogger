@@ -72,7 +72,12 @@ export default function FriendInvitePage() {
                 </p>
                 {loggedIn
                   ? <button style={btn} onClick={accept} disabled={busy}>{busy ? '...' : 'Akceptuj'}</button>
-                  : <Link href={loginHrefFor(`/f/${token}`)} style={btn}>Zaloguj się, aby zaakceptować</Link>}
+                  : (
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                      <Link href={`${loginHrefFor(`/f/${token}`)}&mode=reg`} style={btn}>Załóż konto i dołącz</Link>
+                      <Link href={loginHrefFor(`/f/${token}`)} style={{ ...btn, background:'transparent', color:T.muted2, border:`1px solid ${T.border}` }}>Mam konto, zaloguj się</Link>
+                    </div>
+                  )}
               </>
             )}
           </div>
