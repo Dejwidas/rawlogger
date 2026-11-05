@@ -50,6 +50,7 @@ export default function PlansPage() {
   const [allExercises, setAllExercises] = useState<string[]>([])
   const [editId, setEditId]     = useState<string|null>(null)
   const [newTitle, setNewTitle] = useState('')
+  const [titleDraft, setTitleDraft] = useState<{ id: string, value: string } | null>(null)
   const [adding, setAdding]     = useState(false)
   const [confirmDel, setConfirmDel] = useState<string|null>(null)
   const [editContent, setEditContent] = useState('')
@@ -178,9 +179,13 @@ export default function PlansPage() {
     setNewTitle(''); setAdding(false)
   }
 
-  async function updatePlanTitle(id: string, title: string) {
-    await supabase.from('training_plans').update({ title, updated_at: new Date().toISOString() }).eq('id', id)
+  async function updatePlanTitle(id: string, raw: string) {
+    const title = raw.trim()
+    if (!title) return
+    const { error } = await supabase.from('training_plans').update({ title, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) { console.error('rename failed', error); return }
     setPlans(prev => prev.map(p => p.id === id ? { ...p, title } : p))
+    setTitleDraft(null)
   }
 
   async function savePlanContent() {
@@ -328,8 +333,24 @@ export default function PlansPage() {
           <div style={card}>
             {/* header */}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-              <input value={activePlan.title} onChange={e => updatePlanTitle(activePlan.id, e.target.value)}
-                style={{ ...inp, fontSize:15, fontWeight:600, padding:'4px 8px', flex:1, marginRight:8 }} />
+              {(() => {
+                const draft = titleDraft?.id === activePlan.id ? titleDraft.value : activePlan.title
+                const dirty = draft.trim() !== '' && draft.trim() !== activePlan.title
+                return (
+                  <div style={{ display:'flex', gap:6, flex:1, marginRight:8 }}>
+                    <input value={draft} onChange={e => setTitleDraft({ id: activePlan.id, value: e.target.value })}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && dirty) updatePlanTitle(activePlan.id, draft)
+                        if (e.key === 'Escape') setTitleDraft(null)
+                      }}
+                      style={{ ...inp, fontSize:15, fontWeight:600, padding:'4px 8px', flex:1, minWidth:0 }} />
+                    {dirty && (
+                      <button style={b(true, { padding:'4px 12px', fontSize:12 })}
+                        onClick={() => updatePlanTitle(activePlan.id, draft)}>OK</button>
+                    )}
+                  </div>
+                )
+              })()}
               <div style={{ display:'flex', gap:6 }}>
                 <button style={b(true, { padding:'6px 14px', fontSize:12 })}
                   onClick={launchPlan} disabled={launching || planExes.length === 0}>
