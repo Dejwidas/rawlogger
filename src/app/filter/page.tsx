@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ensureExercise, loadActiveExerciseNames, loadFavoriteNames, normalizeExerciseName, setFavorite } from '@/lib/exercises'
 import Nav from '@/components/Nav'
+import ExerciseChart from '@/components/ExerciseChart'
 
 const T = { bg:'#0e0e0e',surface:'#181818',surface2:'#222',border:'#2a2a2a',border2:'#383838',text:'#e8e8e8',muted:'#555',muted2:'#888',accent:'#c8f135',danger:'#ff4444' }
 const card: React.CSSProperties = { background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:10 }
@@ -373,6 +374,7 @@ export default function FilterPage() {
                   <div style={{ fontSize:11, color:T.muted2, marginBottom:8, textTransform:'uppercase', letterSpacing:'0.04em' }}>
                     Wyniki — {results.length} {results.length===1?'sesja':results.length<5?'sesje':'sesji'}
                   </div>
+                  <ExerciseChart sessions={results} />
                   {results.map(({date,sets})=>(
                     <div key={date} onClick={() => router.push(`/calendar?day=${date}`)}
                       style={{ padding:'8px 0', borderBottom:`1px solid ${T.border}`, fontSize:12, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center' }}
